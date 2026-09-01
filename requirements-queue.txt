@@ -1,0 +1,4 @@
+# The queue worker only. Runs as its own process under the same systemd unit as gunicorn,
+# so that the web layer never imports numpy: on a droplet shared with four other apps, the
+# difference between "the page imports numpy" and "a worker does" is real memory.
+numpy>=1.26

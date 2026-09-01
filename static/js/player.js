@@ -57,6 +57,12 @@ class Player {
     this.worker = null;
     this.liveFrames = [];
     this.liveSupported = detectLiveSupport();
+    // A different seed each time the server is asked, so "fold it again" is a genuinely
+    // different trajectory rather than a cache hit that looks like a very fast fold. The
+    // coil is fixed and only the random force changes, which is exactly the perturbation
+    // P0-3b measured: same funnel, different path through it.
+    this.queueSeed = 1 + Math.floor(Math.random() * 1_000_000);
+    this._queueTimer = null;
   }
 
   async boot() {
@@ -85,8 +91,21 @@ class Player {
   async load(foldId) {
     const response = await fetch(`/api/fold/${encodeURIComponent(foldId)}`);
     if (!response.ok) throw new Error(`fold ${foldId}: HTTP ${response.status}`);
-    const fold = await response.json();
+    this._adoptFold(await response.json());
+    this._setSource('baked');
+    $('live-status').textContent = '';
+    document.querySelectorAll('.card').forEach(card => {
+      card.setAttribute('aria-pressed', String(card.dataset.foldId === foldId));
+    });
+  }
 
+  /* Take a fold object - baked, queued, or finished live - and make it the current one.
+   *
+   * Everything below this line is source-agnostic by construction, which is the whole
+   * reason a queued fold is baked server-side into the gallery's own artefact format
+   * rather than streamed raw: there is one adoption path, so there is one thing to test
+   * and nothing downstream can tell the three sources apart. */
+  _adoptFold(fold) {
     this.fold = fold;
     this.engine = fold.engine ?? 'go';
     this.residueCount = fold.residueCount;
@@ -100,19 +119,15 @@ class Player {
       q: frame.q / 1000,
     }));
     this.index = 0;
+    this.contactsSoFar = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.stage.setResidueCount(fold.residueCount);
-    this._setSource('baked');
-    $('live-status').textContent = '';
 
     $('protein-name').textContent = fold.name;
     $('protein-sub').textContent = subtitleFor(fold);
     $('disclosure').textContent = DISCLOSURES[this.engine] ?? DISCLOSURES.go;
     this._updateBadge();
-    document.querySelectorAll('.card').forEach(card => {
-      card.setAttribute('aria-pressed', String(card.dataset.foldId === foldId));
-    });
-    $('seek').max = String(this.frames.length - 1);
+    $('seek').max = String(Math.max(this.frames.length - 1, 0));
     this._rescore();
     this._show(0);
   }
@@ -162,6 +177,95 @@ class Player {
       button.disabled = true;
       button.title = `Not available here: no ${this.liveSupported.missing.join(', ')}`;
     }
+  }
+
+  /* Ask the droplet to fold this protein, and follow it. Architecture B.
+   *
+   * The fallback for a browser that cannot run the module, and the path for anything too
+   * heavy for a phone. It is one worker at nice 19 behind a residue cap, a depth cap and a
+   * per-IP cap, so the honest failures - a full queue, a protein too large - are ordinary
+   * answers rather than errors, and the page shows them as such. */
+  async foldQueued() {
+    if (!this.fold) return;
+    this.playing = false;
+    this.audio.stop();
+    $('play').textContent = 'Play';
+    this.worker?.postMessage({ type: 'cancel' });
+    this._setSource('queued');
+    $('live-status').textContent = 'asking the server';
+
+    const response = await fetch('/api/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ protein_id: this.fold.id, seed: this.queueSeed }),
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (response.status === 429) {
+      // Not an error: it is the cap doing its job, and the gallery is right there.
+      $('live-status').textContent =
+        `${body.error} Try again shortly, or play the gallery version.`;
+      return;
+    }
+    if (!response.ok && response.status !== 202) {
+      $('live-status').textContent = body.error ?? `the server said ${response.status}`;
+      return;
+    }
+    if (body.cached) {
+      $('live-status').textContent = 'this fold was already computed; loading it';
+      await this._loadQueuedResult(body.result_url);
+      return;
+    }
+    $('live-status').textContent = 'queued';
+    this._pollQueue(body.job_id);
+  }
+
+  _pollQueue(jobId) {
+    clearInterval(this._queueTimer);
+    this._queueTimer = setInterval(async () => {
+      let status;
+      try {
+        const response = await fetch(`/api/queue/${jobId}`);
+        status = await response.json();
+      } catch (err) {
+        $('live-status').textContent = `lost contact with the server: ${err.message}`;
+        clearInterval(this._queueTimer);
+        return;
+      }
+      if (status.state === 'queued') {
+        $('live-status').textContent =
+          `queued, position ${status.position} - this server folds one at a time`;
+      } else if (status.state === 'running') {
+        // Progress is the growing frame file's byte count, which maps to frames exactly.
+        const percent = status.frames_total
+          ? Math.round(100 * status.frames_done / status.frames_total) : 0;
+        $('live-status').textContent = `folding on the server, ${percent}%`;
+      } else if (status.state === 'done') {
+        clearInterval(this._queueTimer);
+        await this._loadQueuedResult(status.result_url);
+      } else {
+        clearInterval(this._queueTimer);
+        // Reported honestly, the timeout included. A job that was killed says so.
+        $('live-status').textContent =
+          `the server ${status.state} this fold${status.error ? `: ${status.error}` : ''}`;
+      }
+    }, 2000);
+  }
+
+  async _loadQueuedResult(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      $('live-status').textContent = `could not load the result: HTTP ${response.status}`;
+      return;
+    }
+    const fold = await response.json();
+    // Straight into the ordinary adoption path: a queued fold is baked into the gallery's
+    // own artefact format precisely so nothing downstream needs to know where it came from.
+    this._adoptFold(fold);
+    const seconds = fold.queued?.seconds;
+    $('live-status').textContent = seconds
+      ? `folded on the server in ${seconds.toFixed(1)} s, seed ${fold.queued.seed}`
+      : 'loaded from the server';
   }
 
   /* Fold the current protein live, in a worker, streaming frames into the same player. */
@@ -458,9 +562,13 @@ class Player {
           this.foldLive().catch(err => {
             $('live-status').textContent = `could not start: ${err.message}`;
           });
+        } else if (button.dataset.source === 'queued') {
+          this.foldQueued().catch(err => {
+            $('live-status').textContent = `could not reach the server: ${err.message}`;
+          });
         } else if (button.dataset.source === 'baked') {
           this.worker?.postMessage({ type: 'cancel' });
-          this._setSource('baked');
+          clearInterval(this._queueTimer);
           this.load(this.fold.id);
         }
       });

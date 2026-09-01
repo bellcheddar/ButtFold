@@ -17,9 +17,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
 from buttfold import store
+from buttfold import queue as jobs
+from buttfold.paths import QUEUE_DB, WORK_DIR
 
 REPO = Path(__file__).resolve().parent
 VERSION = "0.1.0"
@@ -100,9 +102,9 @@ def api_fold(fold_id: str):
 
 
 # The residue cap architecture B ships with, measured in P0-1: ubiquitin folds on the
-# droplet in 7 min 07 s, inside the 15 minute rule. Declared here so the page, the queue and
-# the tests all read one number.
-LIVE_RESIDUE_CAP = 76
+# droplet in 7 min 07 s, inside the 15 minute rule. Read from the queue module rather than
+# repeated, so the page, the routes, the worker and the tests cannot drift apart.
+LIVE_RESIDUE_CAP = jobs.RESIDUE_CAP
 
 # The Gō parameters, in one place. The baker, the droplet queue and the browser must all
 # fold the same protein the same way, or a live fold is not comparable to the gallery entry
@@ -143,6 +145,126 @@ def api_native(protein_id: str):
     return response
 
 
+# One queue handle per process. SQLite in WAL mode is the concurrency control, so several
+# gunicorn workers sharing this file is fine and is the expected deployment.
+_queue = jobs.JobQueue(QUEUE_DB)
+
+# Frames the queue's fold will produce, which is what a progress bar is measured against.
+QUEUED_FRAME_COUNT = 301
+
+
+def client_key() -> str:
+    """Who is asking, for the per-IP cap.
+
+    `X-Forwarded-For` because nginx is in front and `remote_addr` is always 127.0.0.1
+    behind it; without this every visitor shares one identity and the per-IP cap becomes a
+    global cap of one, which looks like a working queue that only ever serves one person.
+    The left-most entry is the client, and it is only trusted because nginx sets this
+    header itself and strips any inbound one.
+    """
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+@app.route("/api/queue", methods=["POST"])
+def api_queue_submit():
+    """Submit a fold to the droplet. 202 with a job id, or 429 when a cap is reached."""
+    payload = request.get_json(silent=True)
+    # json.loads("3") is the integer 3, and `.get` on it is an AttributeError that kills the
+    # request with a 500 rather than a 400. Guarded rather than assumed.
+    if not isinstance(payload, dict):
+        return jsonify({"error": "expected a JSON object with protein_id and seed"}), 400
+    protein_id = payload.get("protein_id")
+    seed = payload.get("seed", 1)
+    if not isinstance(protein_id, str):
+        return jsonify({"error": "protein_id must be a string"}), 400
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        return jsonify({"error": "seed must be an integer"}), 400
+
+    try:
+        job = _queue.submit(
+            protein_id=protein_id, seed=seed, client=client_key(),
+            steps_per_residue=FOLD_PARAMS["stepsPerResidue"],
+            kt=FOLD_PARAMS["kT"], kt_final=FOLD_PARAMS["kTFinal"],
+            frames_total=QUEUED_FRAME_COUNT)
+    except jobs.NotAllowed as err:
+        return jsonify({"error": str(err)}), 400
+    except jobs.QueueFull as err:
+        response = jsonify({"error": str(err)})
+        response.status_code = 429
+        # A number, not a shrug: the caller can decide whether to wait or use the gallery.
+        response.headers["Retry-After"] = str(int(jobs.MEASURED_WORST_CASE_SECONDS))
+        return response
+
+    body = {"job_id": job["id"], "state": job["state"], "cached": job.get("cached", False),
+            "result_url": f"/api/fold/{job['cache_key']}"}
+    return jsonify(body), (200 if job.get("cached") else 202)
+
+
+@app.route("/api/queue/<job_id>")
+def api_queue_status(job_id: str):
+    """Progress, read from the growing frame file's SIZE.
+
+    The stream format is two little-endian int32 (n, frames) then float32 xyz triples, so
+    bytes map to frames exactly and a byte count is an exact progress figure. Parsing the
+    binary's stdout for progress would be a second, lossier source of the same fact.
+    """
+    frames_done = None
+    work = (WORK_DIR / job_id / "frames.bin")
+    if work.exists():
+        try:
+            size = work.stat().st_size
+            record = json.loads((REPO / "data" / "natives"
+                                 / f"{_queue.status(job_id)['protein_id']}.json").read_text())
+            per_frame = record["residueCount"] * 3 * 4
+            frames_done = max(0, (size - 8) // per_frame) if per_frame else 0
+        except (OSError, KeyError, TypeError):
+            frames_done = None
+
+    status = _queue.status(job_id, frames_done=frames_done)
+    if status is None:
+        return jsonify({"error": f"no job {job_id!r}"}), 404
+    response = jsonify({
+        "job_id": status["id"],
+        "state": status["state"],
+        "position": status["position"],
+        "frames_done": status["frames_done"],
+        "frames_total": status["frames_total"],
+        "protein_id": status["protein_id"],
+        "seed": status["seed"],
+        "error": status["error"],
+        "result_url": f"/api/fold/{status['cache_key']}" if status["state"] == "done" else None,
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/queue/<job_id>/result")
+def api_queue_result(job_id: str):
+    """The finished trajectory, in the gallery's own artefact format.
+
+    Same shape, same player, no code path of its own: that is the whole reason a queued
+    fold is baked server-side rather than streamed raw.
+    """
+    status = _queue.status(job_id)
+    if status is None:
+        return jsonify({"error": f"no job {job_id!r}"}), 404
+    if status["state"] != "done":
+        response = jsonify({"error": f"job {job_id} is {status['state']}",
+                            "state": status["state"]})
+        response.status_code = 409
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    entry = store.cached_fold(status["cache_key"])
+    if entry is None:
+        return jsonify({"error": "the result is no longer in the cache"}), 410
+    response = jsonify(entry)
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
 @app.route("/healthz")
 def healthz():
     """200 and the deployed version, for the launcher's dot and for deploy.sh.
@@ -156,6 +278,7 @@ def healthz():
         "version": VERSION,
         "folds": len(store.index()),
         "residueCap": LIVE_RESIDUE_CAP,
+        "queue": _queue.counts(),
     })
 
 

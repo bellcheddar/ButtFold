@@ -247,6 +247,43 @@ them was invisible in the artefact and fatal to a byte comparison:
    a relative error of about 3e-5. Invisible in every length it produces, and enough to move
    a coordinate sitting near a rounding boundary by one unit.
 
+## Phase 4: the queue's caps and its cache
+
+2026-09-01. The caps are not round numbers; each is a measured figure or a stated policy.
+
+| bound | value | where it comes from |
+|---|---|---|
+| residue cap | **76** | P0-1: ubiquitin folds on the droplet in 7 min 07 s, inside the 15 min rule |
+| job timeout | **1,282 s** | 3 x the measured 427.4 s worst case for that protein |
+| queue depth | 5 | policy: a burst answers 429 rather than accumulating work |
+| pending jobs per IP | 1 | policy: one visitor cannot fill the queue alone |
+| worker concurrency | 1, at `nice -n 19` | policy: a fold can never starve nginx or the other four apps |
+| peak RSS of a fold | 2.4 MB | P0-1, on a 3.9 GB box |
+
+42 Python tests cover the caps, the cache, the worker's claim/finish/requeue and the HTTP
+layer. The end-to-end one runs the real binary and the real baker.
+
+Measured end to end through the page, headless Chrome against a live worker:
+
+| | measured |
+|---|---|
+| states a visitor sees | queued (with position) -> folding on the server (with %) -> folded |
+| fold time, trp-cage, on this Mac | 5.3 s |
+| result | 150 frames, Rg 9.5 -> 7.0 Å (ratio 0.73), 2% of contacts on frame 1 |
+| final Q at a random seed | 0.892, against the gallery's 1.000 at seed 1 |
+| notes scored from it | 1,061 |
+| stage badge | "on the server" |
+
+**The page asks for a random seed every time, on purpose.** "Fold it again" should be a
+different trajectory, not a cache hit that looks like a very fast fold. What that costs is
+the seed-to-seed spread P0-3b measured: the same build, folding the same coil, lands
+somewhere different depending only on the random force. The queued fold above finished at
+Q 0.892 where the gallery's seed-1 fold finished at 1.000, and both are good folds.
+
+Progress is read from the growing frame file's **byte count**: the stream format is two
+little-endian int32 then float32 xyz triples, so bytes map to frames exactly. Parsing the
+binary's stdout would be a second and lossier source of the same fact.
+
 ## P0-4: baked payload size
 
 2026-09-01, M1 Max. `tools/bake_gallery.py`, six Gō folds, 150 frames each, 3D coordinates

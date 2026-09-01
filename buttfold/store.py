@@ -17,9 +17,11 @@ import json
 import threading
 from pathlib import Path
 
+from buttfold.paths import CACHE_DIR
+
 REPO = Path(__file__).resolve().parent.parent
 GALLERY = REPO / "static" / "baked" / "gallery.json"
-CACHE = REPO / "static" / "cache"
+CACHE = CACHE_DIR
 
 _lock = threading.Lock()
 _gallery: dict | None = None

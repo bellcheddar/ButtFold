@@ -60,11 +60,13 @@
       <span class="label">Engine</span>
       <div class="segmented" id="engine-mode" role="group" aria-label="Frame source">
         <button type="button" data-source="baked" aria-pressed="true">Gallery</button>
-        <!-- "Fold it live" is enabled by feature detection at boot; the queue arrives in
-             Phase 4. Disabled rather than absent, so the page says what is coming instead
-             of hiding it, and a disabled control carries the reason in its title. -->
+        <!-- "Fold it live" is enabled by feature detection at boot. "Fold on the server"
+             is always available: it is the fallback for a browser that cannot run the
+             module, so it must not itself depend on one. A disabled control carries the
+             reason in its title rather than just looking broken. -->
         <button type="button" data-source="live" aria-pressed="false" disabled>Fold it live</button>
-        <button type="button" data-source="queued" aria-pressed="false" disabled>Queued</button>
+        <button type="button" data-source="queued" aria-pressed="false"
+                title="Fold it on the server instead: one job at a time, up to {{ residueCap }} residues">Fold on the server</button>
       </div>
     </div>
   </div>

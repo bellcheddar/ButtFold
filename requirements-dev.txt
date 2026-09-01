@@ -1,0 +1,9 @@
+# Everything needed to run the whole test suite in one interpreter.
+#
+# The two production requirement files are deliberately disjoint: the web layer gets Flask
+# and gunicorn and NO numpy, because it runs on a 3.9 GB box shared with four other apps;
+# the queue worker gets numpy, because the bake needs it and the worker is a separate
+# process for exactly that reason. Neither can run the other's tests, so this exists.
+-r requirements.txt
+-r requirements-queue.txt
+pytest>=8.0

@@ -157,3 +157,45 @@ The starting coil is committed alongside each native structure rather than compu
 browser cannot build it without a second implementation of the self-avoiding walk, and the
 droplet must not build it, because that would put numpy in the web layer's requirements for
 the sake of a few kilobytes of constants.
+
+### Phase 4: the queue
+
+Architecture B is the only one with a kill condition, and P0-1 measured its way past that
+back in Phase 0, so this was building rather than deciding. The whole design is bounds: one
+worker at nice 19, a residue cap of 76 from measurement, a depth cap of 5, one pending job
+per IP, and a timeout of three times the measured 427.4 s worst case rather than a round
+number. Every cap lives in `buttfold/queue.py` so the routes, the worker and the tests
+cannot drift apart.
+
+The worker is a separate process from Flask for one concrete reason: the bake needs numpy
+and the web layer must not have it. On a 3.9 GB box shared with four other apps the
+difference between "the page imports numpy" and "a worker does" is real memory, so
+`requirements.txt` stays two lines and `requirements-queue.txt` is the worker's. A
+consequence nobody would guess: no interpreter on this Mac could run the whole test suite,
+because the PhoneFold venv has numpy and no Flask and the system Python has Flask and no
+numpy. ButtFold now has its own venv and a `requirements-dev.txt` that says why.
+
+The worker bakes through `bake_frames`, split out of the gallery baker, so a queued fold
+faces the identical collapse and first-frame-contact assertions. A queued fold that did not
+collapse fails there rather than being served as an animation of nothing happening, and it
+fails through *that* code rather than through a second implementation that might not.
+
+Two things I got wrong and the tests caught. The per-IP cap keys on `X-Forwarded-For`,
+because behind nginx every `remote_addr` is 127.0.0.1 and without it the cap becomes a
+global cap of one - a queue that looks like it works and only ever serves one person. And
+`json.loads("3")` is the integer 3, so `.get` on a scalar body is an AttributeError and a
+500 where a 400 belongs.
+
+The worst mistake of the session was mine and not the code's: patching `player.js` by
+slicing between two string indices, which silently swallowed four methods between them. The
+page then failed to boot at all, and the queue smoke test reported the *gallery's* numbers
+as though the queued fold had loaded - 150 frames, Q 1.000 - because the player was still
+showing the fold it already had. A test that reads plausible numbers off the wrong object
+is worse than one that fails. Restored from the last commit and reapplied the change with
+anchored replacements that assert their own anchor exists.
+
+The page asks the server for a random seed each time, deliberately: "fold it again" should
+be a different trajectory rather than a cache hit that looks like a very fast fold. That
+costs exactly the spread P0-3b measured, and the queued trp-cage finished at Q 0.892 against
+the gallery's 1.000. Both are good folds, and the smoke test's bar is set from that
+measurement rather than from the gallery's number.

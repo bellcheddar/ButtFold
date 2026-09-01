@@ -185,7 +185,19 @@ def fold(protein_id: str) -> tuple[dict, np.ndarray, float]:
 
 
 def bake(protein_id: str) -> dict:
+    """Fold this protein and bake it. The gallery path."""
     record, ca, wall = fold(protein_id)
+    return bake_frames(record, ca, wall)
+
+
+def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
+    """Bake a trajectory that has already been folded.
+
+    Split out from `bake` so the droplet's queue worker can reuse it verbatim, assertions
+    included. A queued fold that did not collapse must fail here exactly as a gallery bake
+    would, rather than being served as an animation of nothing happening - and it must fail
+    through THIS code rather than through a second implementation that might not.
+    """
     native = np.asarray(record["ca"], dtype=np.float64)
 
     frames = list(ca)

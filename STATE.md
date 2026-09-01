@@ -1,6 +1,6 @@
 # ButtFold: state
 
-Current phase: **Phase 4, the queue** (Phases 0 to 3 have their machine gates met; Phase 2's HUMAN gate and two Phase 0 rows await Marc)
+Current phase: **Phase 5, shop window, honesty, polish** (Phases 0 to 4 have their machine gates met; Phase 2's HUMAN gate and two Phase 0 rows await Marc)
 
 The task list below is the execution contract from PLAN.md section 11. Status is one of
 `todo` / `doing` / `blocked` / `done`. Phases advance on machine-verifiable gates only;
@@ -138,11 +138,35 @@ todo. Gate: a browser folds trp-cage.
 
 ## Phase 4: the queue
 
-**doing.** Gate: caps hold and the cache converges. The residue cap is **76**, set by P0-1.
+**done.** Gate: caps hold and the cache converges. The residue cap is **76**, set by P0-1.
+
+| # | Task | Status |
+|---|---|---|
+| 4.1 | `buttfold/queue.py`: SQLite job queue, every cap in one place | done |
+| 4.2 | `buttfold/worker.py`: one worker, `nice -n 19`, timeout kills the process group | done |
+| 4.3 | `buttfold/paths.py`: state outside the deployed tree, overridable by environment | done |
+| 4.4 | `/api/queue`, `/api/queue/<id>`, `/api/queue/<id>/result` | done |
+| 4.5 | The worker bakes through `bake_frames`, assertions included | done |
+| 4.6 | "Fold on the server" in the page, with position and progress | done |
+| 4.7 | `tests/test_queue.py` (22 tests) and `tests/queue_smoke.mjs`, both in the gate | done |
+
+**Exit gate (machine): all met.** pytest proves each clause of PLAN section 11:
+
+- a job completes and its result plays through the player (the real binary, the real baker,
+  loaded back through the same store the gallery uses);
+- a second identical request is a **cache hit** and spawns nothing, and an identical request
+  still in flight joins the existing job rather than duplicating it;
+- the **6th** queued job gets a 429, with a `Retry-After`, and writes no row;
+- an **oversized** protein gets a 400 whose message says the cap is 76 and why;
+- a **timeout** is recorded as a timeout rather than a failure, and is 3x the measured worst
+  case rather than a round number.
+
+Plus, in a browser against a live worker: queued (with position) to folding (with progress)
+to a finished fold adopted by the player, badge reading "on the server".
 
 ## Phase 5: shop window, honesty, polish
 
-todo. Gate: the strings are live. **HUMAN** gates at the end (wording, resemblance).
+**doing.** Gate: the strings are live. **HUMAN** gates at the end (wording, resemblance).
 
 ## Phase 6: deploy and list
 
