@@ -227,25 +227,42 @@ export function runLengthDecode(encoded) {
 
 /* Temporal smoothing across a trajectory: a residue must hold a new state for `window`
  * consecutive frames before it changes. Without it the ribbon strobes, one frame's helix
- * becoming the next frame's coil. PLAN asks for roughly three frames. */
+ * becoming the next frame's coil. PLAN asks for roughly three frames.
+ *
+ * **The certainty is held with the state, not taken from the incoming frame.** A held
+ * residue keeps the certainty its own structure last had; taking the raw frame's number
+ * instead reads a score computed for a DIFFERENT structure. Measured on ubiquitin's final
+ * frame, its third beta strand (residues 64 to 69) was held as sheet while the raw
+ * assignment had lost it, so all six residues carried the coil score of 0 and the cartoon
+ * drew that strand as a bare cord. A state held without its certainty is not smoothed, it
+ * is contradicted.
+ */
 export class Hysteresis {
   constructor(residueCount, window = 3) {
     this.window = Math.max(1, window);
     this.current = new Array(residueCount).fill(COIL);
+    this.confidence = new Array(residueCount).fill(0);
     this.candidate = new Array(residueCount).fill(COIL);
     this.streak = new Array(residueCount).fill(0);
   }
 
-  smooth(raw) {
+  /** @returns {{ss: string, confidence: number[]}} */
+  smooth(raw, confidence = null) {
+    const conf = confidence ? Array.from(confidence) : new Array(raw.length).fill(0);
     if (raw.length !== this.current.length) {
       this.current = raw.split('');
+      this.confidence = conf;
       this.candidate = raw.split('');
       this.streak = new Array(raw.length).fill(this.window);
-      return raw;
+      return { ss: raw, confidence: this.confidence.slice() };
     }
     for (let i = 0; i < raw.length; i++) {
       const incoming = raw[i];
-      if (incoming === this.current[i]) { this.streak[i] = 0; continue; }
+      if (incoming === this.current[i]) {
+        this.streak[i] = 0;
+        this.confidence[i] = conf[i];
+        continue;
+      }
       if (incoming === this.candidate[i]) {
         this.streak[i]++;
       } else {
@@ -254,9 +271,11 @@ export class Hysteresis {
       }
       if (this.streak[i] >= this.window) {
         this.current[i] = incoming;
+        this.confidence[i] = conf[i];
         this.streak[i] = 0;
       }
+      // else: the state is held, and so is its certainty.
     }
-    return this.current.join('');
+    return { ss: this.current.join(''), confidence: this.confidence.slice() };
   }
 }

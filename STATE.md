@@ -228,15 +228,17 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       zoom, pinch and double-click-to-reframe came with it.
 - [x] **The charts sit beside the viewer**, which keeps about 60% of the width, and the Play
       bar is above the fold at four common screen sizes.
-- [ ] **Cartoon secondary structure.** The ribbon is a plain tube along the CA trace, so a
-      helix reads as a coiled tube and a strand as a straight one. The app draws a proper
-      cartoon: a flat helical ribbon and an arrowed strand. **This is the biggest remaining
-      visual gap and Marc is guiding it.**
-- [ ] **The helix and strand colours.** Worth noting before changing anything: the default
-      fold, trp-cage, is helix and coil only and has **no sheet at all**, so the cyan never
-      appears on first load. Ubiquitin and protein G show both, which is why the README
-      screenshot uses ubiquitin. Whether the fix is the default protein, the palette or the
-      geometry is Marc's call.
+- [x] **Cartoon secondary structure**, ported from `TubeGeometry.swift`: flat helical
+      ribbons, flat-edged arrowed strands, a thin round cord for coil, swept along a
+      circular-arc spline rather than Catmull-Rom (which cuts 17% off a helix's radius and
+      is why they read as rounded triangles). Two bugs found on the way, both of which
+      showed only as "the strands look thin": P-SEA's confidence is a quality score rather
+      than a probability, and the hysteresis was holding a structure without holding its
+      certainty.
+- [x] **Ubiquitin is first in the gallery and the default on load.** It was trp-cage, which
+      is helix and coil only with no sheet at all, so the cyan never appeared until a
+      visitor clicked something. Ubiquitin is the beta-grasp fold: both, and it collapses
+      from Rg 21.3 to 11.5 Å.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

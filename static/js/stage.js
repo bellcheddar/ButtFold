@@ -19,6 +19,8 @@
  */
 
 import { StageCamera } from './StageCamera.js';
+import { buildCartoon, buildIndices, buildTables, meshSize, profileInUnits, PROFILE }
+  from './cartoon.js';
 
 const STAGE_CLEAR = 0x0d0d26;
 
@@ -92,35 +94,51 @@ export class Stage {
     this.resize();
   }
 
-  /* Build the tube once for a trajectory of this length. Called on protein change, not on
-   * frame change. */
-  setResidueCount(n) {
-    if (n === this.residueCount && this.mesh) return;
+  /* Allocate the cartoon's buffers once for a trajectory of this length.
+   *
+   * The vertex count is a function of the residue count and the profile ALONE, never of a
+   * frame's secondary structure - that is what `ringLayout` guarantees - so the buffers and
+   * the index array are built here and only their contents change per frame. A cartoon whose
+   * vertex count moved with the assignment would reallocate on most frames of a fold.
+   *
+   * `angstromsPerUnit` is the fold's own recorded ruler. The cartoon's proportions are in
+   * angstroms because that is the language PyMOL and every ribbon diagram use; the stage
+   * works in the artefact's quantised box, so they are converted here rather than guessed.
+   */
+  setResidueCount(n, angstromsPerUnit = null) {
+    const ruler = angstromsPerUnit ?? this.angstromsPerUnit ?? 0.04;
+    if (n === this.residueCount && this.mesh && ruler === this.angstromsPerUnit) return;
     this.residueCount = n;
+    this.angstromsPerUnit = ruler;
     if (this.mesh) {
       this.group.remove(this.mesh);
       this.mesh.geometry.dispose();
       this.mesh.material.dispose();
     }
     const THREE = this.THREE;
-    // Enough spline samples that a helix reads as a helix: about four per residue.
-    this.tubularSegments = Math.max(64, (n - 1) * 4);
-    this.radialSegments = 8;
 
-    // Spread along a line rather than all at the origin. A CatmullRomCurve3 whose control
-    // points are coincident has zero length, and TubeGeometry's Frenet frames on it come
-    // out NaN: the vertex positions are NaN, the bounding sphere computed from them is NaN,
-    // and three.js then frustum-culls the mesh for the rest of its life. The page looks
-    // perfect and the stage stays empty. Found by the screenshot gate, not by any test.
-    const points = Array.from({ length: n }, (_, i) =>
-      new THREE.Vector3(i * 10 - (n - 1) * 5, 0, 0));
-    this.curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.5);
-    const geometry = new THREE.TubeGeometry(this.curve, this.tubularSegments, 26,
-                                            this.radialSegments, false);
+    this.profile = profileInUnits(ruler, PROFILE);
+    this.tables = buildTables(this.profile);
+    const size = meshSize(n, this.profile);
+    this.buffers = {
+      position: new Float32Array(size.vertices * 3),
+      normal: new Float32Array(size.vertices * 3),
+      structure: new Uint8Array(size.vertices),
+      residue: new Uint16Array(size.vertices),
+    };
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.buffers.position, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(this.buffers.normal, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(
-      new Float32Array(geometry.attributes.position.count * 3), 3));
+      new Float32Array(size.vertices * 3), 3));
+    geometry.setIndex(new THREE.BufferAttribute(buildIndices(n, this.profile), 1));
+
     const material = new THREE.MeshPhongMaterial({
-      vertexColors: true, shininess: 42, specular: 0x223355,
+      vertexColors: true, shininess: 34, specular: 0x1b2740,
+      // The cartoon is a closed surface with correct winding, so the back faces are the
+      // inside and are never meant to be seen.
+      side: THREE.FrontSide, flatShading: false,
     });
     this.mesh = new THREE.Mesh(geometry, material);
     // One mesh, always centred on the origin, always in shot. Culling it can only ever be
@@ -131,65 +149,79 @@ export class Stage {
 
   /**
    * Draw one frame.
+   *
    * @param positions flat xyz, length 3n, in the artefact's quantised units
    * @param ss        per-residue 'H'/'E'/'C', length n
-   * @param confidence per-residue 0..1, or null
+   * @param confidence per-residue native fraction 0..1, for the confidence colour mode
+   * @param ssConf    per-residue P-SEA certainty 0..1, which the cartoon's shape is swept from
    */
-  render(positions, ss, confidence) {
+  render(positions, ss, confidence, ssConf) {
     const n = positions.length / 3;
     this.setResidueCount(n);
-    const THREE = this.THREE;
+    if (!this.mesh) return;
 
-    for (let i = 0; i < n; i++) {
-      this.curve.points[i].set(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]);
-    }
+    // No P-SEA certainty (an older artefact, or a source that does not carry it): fall back
+    // to full confidence wherever a structure is assigned, so the ribbon is drawn at its
+    // full width rather than collapsing to a cord. Stated rather than silent, because a
+    // cartoon that quietly renders as a tube looks like a rendering bug.
+    const certainty = ssConf ?? this._assumedCertainty(ss, n);
 
-    // Rebuild the tube's vertex positions in place. TubeGeometry has no "update from
-    // curve" method, so a fresh one is generated and its position/normal buffers are
-    // copied across. That allocates one geometry per frame inside three.js and discards
-    // it immediately, which is still far cheaper than replacing the mesh, and it keeps
-    // the colour buffer we own.
-    const fresh = new THREE.TubeGeometry(this.curve, this.tubularSegments, 26,
-                                         this.radialSegments, false);
+    const written = buildCartoon(positions, ss, certainty, this.profile,
+                                 this.buffers, this.tables);
+    if (!written) return;
+
     const geometry = this.mesh.geometry;
-    geometry.attributes.position.array.set(fresh.attributes.position.array);
-    geometry.attributes.normal.array.set(fresh.attributes.normal.array);
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.normal.needsUpdate = true;
     // Recomputed every frame: the structure changes size by a factor of two over a
     // trajectory, and a bounding sphere from frame 0 would be wrong for every other frame.
     geometry.computeBoundingSphere();
-    fresh.dispose();
 
-    this._paint(ss, confidence, n);
+    this._paint(confidence, n);
     this.renderer.render(this.scene, this.camera);
   }
 
-  _paint(ss, confidence, n) {
-    const geometry = this.mesh.geometry;
-    const colours = geometry.attributes.color;
-    const ringCount = this.tubularSegments + 1;
-    const perRing = this.radialSegments + 1;
-    const palette = COLOUR_MODES[this.colourMode] ?? COLOUR_MODES.structure;
-    const colour = new this.THREE.Color();
+  _assumedCertainty(ss, n) {
+    if (!this._certaintyScratch || this._certaintyScratch.length !== n) {
+      this._certaintyScratch = new Float32Array(n);
+    }
+    for (let i = 0; i < n; i++) this._certaintyScratch[i] = ss[i] === 'C' ? 0 : 1;
+    return this._certaintyScratch;
+  }
 
-    for (let ring = 0; ring < ringCount; ring++) {
-      // Which residue this ring sits on. The tube is sampled uniformly along the curve,
-      // and the curve's control points are the residues, so this is a straight remap.
-      const residue = Math.min(n - 1, Math.round(ring / (ringCount - 1) * (n - 1)));
-      let hex;
-      if (this.colourMode === 'confidence') {
-        hex = confidenceColour(confidence ? (confidence[residue] ?? 0) : 0);
-      } else {
-        hex = palette[ss?.[residue] ?? 'C'] ?? palette.C;
-      }
-      colour.setHex(hex);
-      for (let k = 0; k < perRing; k++) {
-        const v = ring * perRing + k;
-        if (v * 3 + 2 < colours.array.length) colour.toArray(colours.array, v * 3);
-      }
+  /* Colour every vertex from the structure code the sweep wrote, not from a remap of ring
+   * index to residue. The sweep already knows which residue paints each ring, including the
+   * duplicated junction rings that make a boundary a hard edge rather than a gradient. */
+  _paint(confidence, n) {
+    const colours = this.mesh.geometry.attributes.color;
+    const array = colours.array;
+    const palette = COLOUR_MODES[this.colourMode] ?? COLOUR_MODES.structure;
+    const byCode = [palette.C, palette.H, palette.E];
+    const colour = new this.THREE.Color();
+    const vertices = this.buffers.structure.length;
+    const byConfidence = this.colourMode === 'confidence';
+
+    // Two colours per structure code is all the ramp needs, so the conversion is hoisted
+    // out of the per-vertex loop: at 20 segments and 10 samples a residue this runs about
+    // 160,000 times a frame on ubiquitin, and `Color.setHex` is not free.
+    const cache = new Map();
+    const rgbOf = (hex) => {
+      let rgb = cache.get(hex);
+      if (!rgb) { colour.setHex(hex); rgb = [colour.r, colour.g, colour.b]; cache.set(hex, rgb); }
+      return rgb;
+    };
+
+    for (let v = 0; v < vertices; v++) {
+      const hex = byConfidence
+        ? confidenceColour(confidence ? (confidence[this.buffers.residue[v]] ?? 0) : 0)
+        : (byCode[this.buffers.structure[v]] ?? palette.C);
+      const rgb = rgbOf(hex);
+      array[3 * v] = rgb[0];
+      array[3 * v + 1] = rgb[1];
+      array[3 * v + 2] = rgb[2];
     }
     colours.needsUpdate = true;
+    void n;
   }
 
   setColourMode(mode) { this.colourMode = mode; }

@@ -121,13 +121,17 @@ class Player {
       // changed the colours, and showed nothing. The wiring audit cannot see this: the
       // module is imported, the button is wired, the function is called.
       confidence: frame.conf ? Float32Array.from(frame.conf, c => c / 100) : null,
+      // P-SEA's certainty per residue, which the cartoon sweeps its cross section from: it
+      // is what makes a ribbon grow in rather than snap from cord to slab. A different
+      // quantity from `confidence` above, which is how much of the fold has happened.
+      ssConfidence: frame.ssConf ? Float32Array.from(frame.ssConf, c => c / 100) : null,
       rg: frame.rg / 10,
       q: frame.q / 1000,
     }));
     this.index = 0;
     this.contactsSoFar = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
-    this.stage.setResidueCount(fold.residueCount);
+    this.stage.setResidueCount(fold.residueCount, fold.angstromsPerUnit);
 
     $('protein-name').textContent = fold.name;
     $('protein-sub').textContent = subtitleFor(fold);
@@ -402,7 +406,7 @@ class Player {
     if (!this.frames.length) return;
     this.index = Math.max(0, Math.min(this.frames.length - 1, index));
     const frame = this.frames[this.index];
-    this.stage.render(frame.points, frame.ss, frame.confidence);
+    this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
     this._readouts(frame);
     $('seek').value = String(this.index);
     $('frame-count').textContent =
@@ -480,7 +484,7 @@ class Player {
     } else if (this.frames.length) {
       // Still re-render, because the idle spin moved the camera.
       const frame = this.frames[this.index];
-      this.stage.render(frame.points, frame.ss, frame.confidence);
+      this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
     }
     requestAnimationFrame(t => this._loop(t));
   }

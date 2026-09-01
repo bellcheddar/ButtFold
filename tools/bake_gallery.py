@@ -50,9 +50,14 @@ SOURCE = REPO / "native" / "go_model_fold.c"
 CACHE = REPO / "build" / ".fold_cache"
 OUTPUT = REPO / "static" / "baked" / "gallery.json"
 
-# The launch gallery, shortest first: that is the order the cards appear in and the order a
-# visitor should meet them in.
-CHOSEN = ["trp_cage", "ww_domain", "villin_hp36", "protein_g_b1", "alpha3d", "ubiquitin"]
+# The launch gallery. **Ubiquitin first**, and it is therefore what the page loads with.
+#
+# It used to be trp-cage, shortest first, and that was the wrong opening: trp-cage is 20
+# residues of helix and coil with NO sheet at all, so the cyan never appeared until a visitor
+# clicked something, and the first thing anyone saw was a short magenta-and-slate squiggle.
+# Ubiquitin is the beta-grasp fold: helix and sheet both, 76 residues, and it collapses from
+# Rg 21.3 to 11.5 A, which is the most legible fold in the set.
+CHOSEN = ["ubiquitin", "protein_g_b1", "alpha3d", "villin_hp36", "ww_domain", "trp_cage"]
 
 FRAME_CAP = 150            # interpolated in the browser; PLAN section 5.3
 QUANTISED_RANGE = 1000     # a tenth of a per cent of the structure's width
@@ -251,8 +256,8 @@ def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
 
     baked_frames = []
     for index, (frame, contacts) in enumerate(zip(centred, per_frame_contacts)):
-        raw_ss, _confidence = psea.assign(frames[index])
-        ss = smoother.smooth(raw_ss)
+        raw_ss, raw_confidence = psea.assign(frames[index])
+        ss, ss_confidence = smoother.smooth(raw_ss, raw_confidence)
         d = np.linalg.norm(frames[index][pairs[:, 0]] - frames[index][pairs[:, 1]], axis=1)
         q = float((d < 1.2 * sigma).mean()) if len(pairs) else 0.0
         # Per-residue confidence, rounded to whole percent. That is a tenth of the
@@ -264,6 +269,13 @@ def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
             "newContacts": [[int(i), int(j)] for i, j in contacts],
             "ss": psea.run_length_encode(ss),
             "conf": [int(round(c)) for c in confidence],
+            # P-SEA's own certainty per residue, which is a different thing from `conf`
+            # above: that is how much of the fold has happened, this is how sure the
+            # assigner is that this residue is helix or sheet. The cartoon sweeps its cross
+            # section from it, so a ribbon grows in rather than snapping. Carried through
+            # the same hysteresis as the structure, so a held residue keeps its own
+            # structure's certainty rather than borrowing a different one's.
+            "ssConf": [int(round(c * 100)) for c in ss_confidence],
             "rg": int(round(radius_of_gyration(frames[index]) * 10)),
             "q": int(round(q * 1000)),
         })

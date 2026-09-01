@@ -264,23 +264,36 @@ def run_length_decode(encoded: str) -> str:
 
 class Hysteresis:
     """Temporal smoothing across a trajectory: a residue must hold a new state for
-    `window` consecutive frames before it changes. Without it the ribbon strobes."""
+    `window` consecutive frames before it changes. Without it the ribbon strobes.
+
+    **The certainty is held with the state, not taken from the incoming frame.** Both are
+    returned, and a held residue keeps the certainty its own structure last had. Taking the
+    raw frame's number instead reads a score computed for a *different* structure: measured
+    on ubiquitin's final frame, its third beta strand (residues 64 to 69) was held as sheet
+    while the raw assignment had lost it, so all six residues carried the coil score of 0 and
+    the cartoon drew that strand as a bare cord. A state that is held without its certainty
+    is not smoothed, it is contradicted.
+    """
 
     def __init__(self, residue_count: int, window: int = 3):
         self.window = max(1, window)
         self.current = [COIL] * residue_count
+        self.confidence = [0.0] * residue_count
         self.candidate = [COIL] * residue_count
         self.streak = [0] * residue_count
 
-    def smooth(self, raw: str) -> str:
+    def smooth(self, raw: str, confidence: list[float] | None = None) -> tuple[str, list[float]]:
+        conf = list(confidence) if confidence is not None else [0.0] * len(raw)
         if len(raw) != len(self.current):
             self.current = list(raw)
+            self.confidence = conf
             self.candidate = list(raw)
             self.streak = [self.window] * len(raw)
-            return raw
+            return raw, list(self.confidence)
         for i, incoming in enumerate(raw):
             if incoming == self.current[i]:
                 self.streak[i] = 0
+                self.confidence[i] = conf[i]
                 continue
             if incoming == self.candidate[i]:
                 self.streak[i] += 1
@@ -289,8 +302,10 @@ class Hysteresis:
                 self.streak[i] = 1
             if self.streak[i] >= self.window:
                 self.current[i] = incoming
+                self.confidence[i] = conf[i]
                 self.streak[i] = 0
-        return "".join(self.current)
+            # else: the state is held, and so is its certainty.
+        return "".join(self.current), list(self.confidence)
 
 
 def _write_fixtures() -> int:

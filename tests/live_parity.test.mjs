@@ -81,6 +81,7 @@ test('frames.js rebuilds every baked frame exactly', () => {
       // The ribbon's colour and the sonifier's texture voices.
       assert.equal(built.ss, baked.ss, `${where}: secondary structure`);
       assert.deepEqual(built.conf, baked.conf, `${where}: confidence`);
+      assert.deepEqual(built.ssConf, baked.ssConf, `${where}: secondary-structure certainty`);
       assert.equal(built.rg, baked.rg, `${where}: radius of gyration`);
       framesChecked++;
     });

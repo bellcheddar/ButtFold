@@ -284,6 +284,51 @@ Progress is read from the growing frame file's **byte count**: the stream format
 little-endian int32 then float32 xyz triples, so bytes map to frames exactly. Parsing the
 binary's stdout would be a second and lossier source of the same fact.
 
+## The cartoon
+
+2026-09-01, after Marc reported the ribbon reading as a coiled coil. Measured on ubiquitin's
+final frame, in the artefact's quantised units, where the cord is 5.1 and the intended
+ribbon widths are 34.7 (helix) and 36.0 (sheet), with an arrowhead base of 50.2.
+
+| | round tube (before) | cartoon (after) |
+|---|---|---|
+| helix ring width, median | 5.1, the cord | **34.4** (99% of intended) |
+| sheet ring width, median | 5.1, the cord | **33.7** (94%) |
+| widest sheet ring (the arrowhead) | 5.1 | **50.2** |
+| coil ring width | 5.1 | 5.1, unchanged |
+
+Two things had to be found to get there, and both were invisible as anything but "the
+strands look thin":
+
+**P-SEA's confidence is a quality score, not a probability.** PhoneFold's default assigner
+is a trained classifier whose confidence is a probability, so a real strand arrives at 1.0
+and the ribbon sweeps at full width. P-SEA's is 0.4 + 0.6 x how centrally its measurements
+sit inside windows that are tight for a strand. Swept straight from it, helix rings came out
+at 68% of the intended width and **sheet rings at 26%**. `ribbonConfidence` remaps it by
+asking P-SEA's own question instead - strict criterion, or picked up by extension - and the
+remap lives in the renderer, so the artefact stays a faithful record of what P-SEA said.
+
+**A held state must hold its certainty too.** The temporal hysteresis held ubiquitin's third
+beta strand (residues 64 to 69) as sheet while the raw assignment had lost it that frame, and
+took the certainty from the raw frame, which was scoring those residues as *coil*: all six
+carried 0 and that strand drew as a bare cord. The hysteresis now carries both.
+
+### The curve
+
+| | measured |
+|---|---|
+| helix radius error, arc-blend spline | **4.6%** |
+| the same, Catmull-Rom | 16.9% |
+| strand zigzag before the guide smoothing | 1.74 Å (about the ribbon's own half-width) |
+| after three [1,2,1] passes | 0.17 Å, keeping 1.75 Å of real curvature |
+| ring vertex spacing, uniform angle | 11.3-fold between longest and shortest |
+| the same, spaced by arc length | 4.2-fold |
+
+16.9% is exactly the figure PhoneFold's source records for why its helices came out as
+rounded triangles: a Catmull-Rom midpoint between two alpha carbons 100 degrees apart on a
+helix sits at 0.831 of the radius. A helix is not a circle, so the arc blend is not exact on
+one either, but it is nearly four times closer.
+
 ## Phase 6: live, and measured from outside
 
 2026-09-01. `https://buttfold.mdeller.com`, verified from this Mac against the deployed

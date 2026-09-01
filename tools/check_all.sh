@@ -30,7 +30,8 @@ run "python tests"      "$PY" -m pytest tests/ -q
 if [[ -x "$NODE" ]]; then
   run "javascript tests"  "$NODE" --test tests/module_parity.test.mjs \
       tests/geometry_parity.test.mjs tests/sonifier_parity.test.mjs \
-      tests/live_parity.test.mjs tests/stage_camera.test.mjs
+      tests/live_parity.test.mjs tests/stage_camera.test.mjs \
+      tests/cartoon.test.mjs
 else
   printf '\n=== javascript tests ===\n  SKIPPED: no node at %s (set BUTTFOLD_NODE)\n' "$NODE"
   failed=1

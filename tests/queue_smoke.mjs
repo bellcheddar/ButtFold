@@ -93,6 +93,10 @@ if (!ready) {
   process.exit(1);
 }
 
+// Trp-cage, selected: the page opens on ubiquitin, which the droplet folds in minutes
+// rather than seconds, and this test is about the queue rather than about the protein.
+await evaluate(`window.buttfoldPlayer.load('trp_cage')`);
+await sleep(1200);
 const baked = await evaluate(`(() => {
   const p = window.buttfoldPlayer;
   return { id: p.fold.id, frames: p.frames.length, q: p.frames[p.frames.length - 1].q,

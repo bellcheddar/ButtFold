@@ -124,7 +124,8 @@ export function buildFrame(caAngstroms, scale, tracker, smoother, confidence) {
   // they would mean whatever the scale happened to be.
   const newContacts = tracker.update(caAngstroms);
   const raw = assign(caAngstroms);
-  const ss = smoother.smooth(raw.ss);
+  const smoothed = smoother.smooth(raw.ss, raw.confidence);
+  const ss = smoothed.ss;
 
   const centred = centre(caAngstroms);
   const points = new Array(centred.length);
@@ -141,6 +142,10 @@ export function buildFrame(caAngstroms, scale, tracker, smoother, confidence) {
     // Every integer here goes through the same rounding rule as the baker's, for the same
     // reason: these are compared for exact equality across the two paths.
     conf: confidence ? Array.from(confidence, c => roundHalfToEven(c)) : [],
+    // Carried through the same hysteresis as the structure, so a held residue keeps its own
+    // structure's certainty rather than borrowing a different one's. The cartoon sweeps its
+    // cross section from this, so a live fold's ribbons grow in exactly as a baked fold's do.
+    ssConf: Array.from(smoothed.confidence, c => roundHalfToEven(c * 100)),
     rg: roundHalfToEven(radiusOfGyration(caAngstroms) * 10),
     q: 0,     // filled in by the caller, which is the only place that knows the native state
   };

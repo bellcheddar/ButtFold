@@ -103,8 +103,11 @@ const support = await evaluate('window.buttfoldPlayer.liveSupported');
 const bakedFinalQ = await evaluate(
   '(() => { const f = window.buttfoldPlayer.frames; return f[f.length - 1].q; })()');
 
-// Trp-cage is the first card and is what the page loads by default; assert that rather
-// than assume it, because the gate is specifically about trp-cage.
+// The gate is specifically about trp-cage (Q >= 0.95, 100 frames), so it is SELECTED rather
+// than assumed: the page opens on ubiquitin now, which is 76 residues and 7.6 M steps where
+// trp-cage is 20 and 2 M.
+await evaluate(`window.buttfoldPlayer.load('trp_cage')`);
+await sleep(1200);
 const foldId = await evaluate('window.buttfoldPlayer.fold.id');
 
 console.log(`page          fold ${foldId}, live support ${support.ok ? 'yes' : 'no'}`

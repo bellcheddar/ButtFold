@@ -67,14 +67,21 @@ test('PSEA.js reproduces tools/psea.py exactly', () => {
 
 test('the P-SEA hysteresis holds a state for three frames before it changes', () => {
   const smoother = new Hysteresis(4, 3);
-  assert.equal(smoother.smooth('CCCC'), 'CCCC');
+  const conf = n => new Array(4).fill(n);
+  assert.equal(smoother.smooth('CCCC', conf(0)).ss, 'CCCC');
   // One frame of helix is a flicker and must not take.
-  assert.equal(smoother.smooth('HHHH'), 'CCCC');
-  assert.equal(smoother.smooth('HHHH'), 'CCCC');
+  assert.equal(smoother.smooth('HHHH', conf(0.9)).ss, 'CCCC');
+  assert.equal(smoother.smooth('HHHH', conf(0.9)).ss, 'CCCC');
   // Three consecutive frames of the same new state, so it takes.
-  assert.equal(smoother.smooth('HHHH'), 'HHHH');
-  // And a single frame back to coil does not undo it.
-  assert.equal(smoother.smooth('CCCC'), 'HHHH');
+  const taken = smoother.smooth('HHHH', conf(0.9));
+  assert.equal(taken.ss, 'HHHH');
+  assert.deepEqual(taken.confidence, conf(0.9));
+  // And a single frame back to coil does not undo it - nor may it take the coil frame's
+  // certainty, which is a score for a structure this residue is not being drawn as.
+  const held = smoother.smooth('CCCC', conf(0));
+  assert.equal(held.ss, 'HHHH');
+  assert.deepEqual(held.confidence, conf(0.9),
+                   'a held residue borrowed the incoming frame\'s certainty');
 });
 
 test('ContactTracker.js reproduces tools/contacts.py exactly', () => {

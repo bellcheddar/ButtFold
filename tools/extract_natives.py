@@ -37,7 +37,7 @@ PROTEINS = PHONEFOLD / "Tools/proteins.json"
 # The launch gallery: the six short ones, and short is the criterion. A 314-residue
 # receptor folded in a browser tab is a smudge and minutes of CPU; these are 20 to 76
 # residues and every one of them has a measured fold time in PhoneFold's METRICS.md.
-CHOSEN = ["trp_cage", "ww_domain", "villin_hp36", "protein_g_b1", "alpha3d", "ubiquitin"]
+CHOSEN = ["ubiquitin", "protein_g_b1", "alpha3d", "villin_hp36", "ww_domain", "trp_cage"]
 
 # The same coil seed `tools/bake_gallery.py` uses, so a live fold starts where the gallery
 # entry beside it started and the two are comparable.
