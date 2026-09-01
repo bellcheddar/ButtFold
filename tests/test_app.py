@@ -137,23 +137,14 @@ def test_the_hash_changes_with_content_and_not_with_mtime(tmp_path):
 
 # ------------------------------------------------------------------ the page ------------
 
-def test_the_disclosure_line_reaches_the_page_not_only_the_source(client):
-    """The amber line under the title is written by the JS at load, so the server-rendered
-    HTML does not contain it and a grep of the template would pass while the page showed
-    nothing. What is asserted here is that the element the JS writes into exists; the
-    served-page check is done by tests/stage_screenshot.mjs in a real browser."""
+def test_the_engine_badge_is_present_and_the_line_is_gone(client):
+    """The amber disclosure line under the title was removed on Marc's instruction,
+    2026-09-01, so the stage badge is now where the page states what produced what is on it.
+    Its wording is asserted in tests/test_honesty.py; this checks the page carries it and
+    that the removed line has not crept back."""
     page = client.get("/").get_data(as_text=True)
-    assert 'id="disclosure"' in page
-    assert 'class="disclosure"' in page
-
-
-def test_the_page_carries_the_verbatim_disclosure_strings():
-    """These are quotations from the shipped app and are checked byte for byte, em dash
-    included. The Phase 5 gate repeats this against a LIVE GET; this one is the cheap
-    version that fails in CI before a deploy ever happens."""
-    player = (REPO / "static/js/player.js").read_text()
-    assert "Simulated on device toward a known structure — not a prediction" in player
-    assert "Genie 2 invents a backbone from noise. Not a named protein" in player
+    assert 'id="badge-engine"' in page and 'id="badge-where"' in page
+    assert 'id="disclosure"' not in page, "the removed disclosure line is back"
 
 
 def test_the_page_carries_the_disclosure_paragraph(client):

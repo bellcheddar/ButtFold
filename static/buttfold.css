@@ -134,13 +134,17 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 
 .controls {
   display: flex; flex-wrap: wrap; align-items: center;
-  gap: 8px 20px; margin: 10px 0 12px;
+  gap: 8px 14px; margin: 10px 0 12px;
 }
-.control { display: flex; align-items: center; gap: 8px; }
+.control { display: flex; align-items: center; gap: 6px; }
 .control > .label {
-  color: var(--bf-text-2); font-size: 11px; text-transform: uppercase;
-  letter-spacing: 0.08em; white-space: nowrap;
+  color: var(--bf-text-2); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.06em; white-space: nowrap;
 }
+/* Five colour modes, five styles and three engines: thirteen buttons and three labels
+   sharing one line at the 1100 px wrap. Measured, and asserted at four screen sizes by
+   tests/stage_screenshot.mjs, because this is arithmetic over a dozen text widths and it is
+   right when written and wrong the next time a label changes. */
 .segmented {
   display: inline-flex; background: var(--bf-ground-raised);
   border-radius: var(--bf-radius-pill); padding: 3px; gap: 2px;
@@ -148,8 +152,8 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 }
 .segmented button {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--bf-text-3); font: 500 12.5px/1 var(--bf-sans);
-  padding: 7px 12px; border-radius: var(--bf-radius-pill);
+  color: var(--bf-text-3); font: 500 12px/1 var(--bf-sans);
+  padding: 7px 10px; border-radius: var(--bf-radius-pill);
   transition: background 120ms ease, color 120ms ease;
   white-space: nowrap;
 }
@@ -234,7 +238,7 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
    the fold, so the labels are short enough to fit six columns in a 60% one: the units are
    in the label and the values speak for themselves. */
 @media (min-width: 901px) {
-  .readouts { grid-template-columns: repeat(6, 1fr); }
+  .readouts { grid-template-columns: repeat(7, 1fr); }
   .readout .k { font-size: 9.5px; letter-spacing: 0.06em; white-space: nowrap; }
 }
 .readout { background: var(--bf-ground); padding: 7px 12px; }

@@ -12,7 +12,7 @@
 
 import { Stage, COLOUR_MODES } from './stage.js';
 import { runLengthDecode } from './PSEA.js';
-import { score } from './Sonifier.js';
+import { score, compaction } from './Sonifier.js';
 import { FoldAudio } from './audio.js';
 
 const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
@@ -26,14 +26,14 @@ const STATIC_BASE = document.currentScript?.dataset.staticBase
   ?? document.querySelector('script[data-static-base]')?.dataset.staticBase
   ?? '/static';
 
-/* The disclosure lines. Verbatim quotations from the shipped app, em dash included, and
- * the Phase 5 gate greps the served page for them. ButtFold's own prose uses no em dashes;
- * these are not ButtFold's own prose. PLAN.md section 7. */
-export const DISCLOSURES = {
-  go: 'Simulated on device toward a known structure — not a prediction',
-  generative: 'Genie 2 invents a backbone from noise. Not a named protein',
-};
-
+/* The engine badge, which is now where the page states what produced what is on the stage.
+ *
+ * The amber line under the title that used to carry the app's verbatim disclosure was
+ * removed on Marc's instruction, 2026-09-01. The claim did not go with it: this badge sits
+ * in the stage's corner, never scrolls away while anything is playing, and names both the
+ * engine and where it ran; and the disclosure paragraph below the gallery says it in full,
+ * as body text rather than behind a link. PLAN section 7 asked for three placements and
+ * there are two. */
 const ENGINE_BADGE = {
   go: 'Gō model · toward a known structure',
   generative: 'Genie 2 · invented from noise',
@@ -139,10 +139,10 @@ class Player {
     this.contactsSoFar = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.stage.setResidueCount(fold.residueCount, fold.angstromsPerUnit);
+    this.stage.setSequence(fold.sequence);
 
     $('protein-name').textContent = fold.name;
     $('protein-sub').textContent = subtitleFor(fold);
-    $('disclosure').textContent = DISCLOSURES[this.engine] ?? DISCLOSURES.go;
     this._updateBadge();
     $('seek').max = String(Math.max(this.frames.length - 1, 0));
     this._rescore();
@@ -414,6 +414,7 @@ class Player {
     this.index = Math.max(0, Math.min(this.frames.length - 1, index));
     const frame = this.frames[this.index];
     this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
+    this.rendered = this.index;
     this._readouts(frame);
     $('seek').value = String(this.index);
     $('frame-count').textContent =
@@ -431,6 +432,11 @@ class Player {
       : (this.contactsSoFar ?? 0) + frame.newContacts.length;
 
     $('r-rg').textContent = frame.rg.toFixed(1);
+    // 0 at the denatured radius of gyration for a chain this length and 1 at the native
+    // one, both from measured scaling laws. The same function the sonifier drives its
+    // accelerando from, so the number on screen and the tempo cannot disagree.
+    $('r-compact').textContent =
+      `${Math.round(compaction(frame.rg, this.residueCount) * 100)}%`;
     $('r-q').textContent = `${Math.round(frame.q * 100)}%`;
     $('r-contacts').textContent = String(this.contactsSoFar);
     $('r-helix').textContent = `${Math.round(100 * helix / n)}%`;
@@ -469,7 +475,10 @@ class Player {
       // the course of a forty-five second piece. Asking the audio where it is costs nothing
       // and cannot drift.
       const frame = this.audio.frameAt(this.audio.positionSeconds);
-      if (frame !== this.index) this._show(frame);
+      // Only sweep when the trajectory frame actually changes. At 45 s for 150 frames that
+      // is about three redraws per sweep at 60 Hz, and the camera still moves on every one.
+      if (frame !== this.index || this.rendered !== frame) this._show(frame);
+      else this.stage.redraw();
       $('seek').value = String(this.index);
       if (this.audio.positionSeconds >= (this.audio.durationSeconds ?? 0)) {
         this.playing = false;
@@ -489,9 +498,8 @@ class Player {
         this._show(this.index + 1);
       }
     } else if (this.frames.length) {
-      // Still re-render, because the idle spin moved the camera.
-      const frame = this.frames[this.index];
-      this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
+      // The camera moved, not the protein: draw the scene again without re-sweeping it.
+      this.stage.redraw();
     }
     requestAnimationFrame(t => this._loop(t));
   }
@@ -595,6 +603,9 @@ class Player {
         document.querySelectorAll('#colour-mode button').forEach(b =>
           b.setAttribute('aria-pressed', String(b === button)));
         this.stage.setColourMode(button.dataset.mode);
+        // A colour change repaints, which means a sweep: the paint is written into the same
+        // buffers the sweep fills.
+        this.rendered = -1;
         this._show(this.index);
       });
     });
@@ -642,19 +653,67 @@ function prepare(canvas) {
   return { ctx, w, h };
 }
 
-function polyline(ctx, values, w, h, low, high, colour) {
-  if (values.length < 2) return;
+/**
+ * A centred moving average.
+ *
+ * The radius of gyration of a Langevin trajectory is genuinely noisy - the chain rattles
+ * against its own thermal energy at every step - so the raw trace is a band of hair with the
+ * collapse buried in it. Averaging shows the collapse, which is what the chart is for.
+ *
+ * **Centred, and the window is stated on the chart.** A trailing average would shift the
+ * collapse later than it happened, which on a plot whose whole subject is when things
+ * occurred would be a lie. The ends shrink the window rather than padding, so nothing is
+ * invented outside the data.
+ */
+function smoothed(values, window) {
+  if (values.length < 3 || window < 2) return values;
+  const half = Math.floor(window / 2);
+  const out = new Array(values.length);
+  for (let i = 0; i < values.length; i++) {
+    const from = Math.max(0, i - half);
+    const to = Math.min(values.length - 1, i + half);
+    let total = 0;
+    for (let k = from; k <= to; k++) total += values[k];
+    out[i] = total / (to - from + 1);
+  }
+  return out;
+}
+
+/** A line through the points, rounded at every joint.
+ *
+ * Each segment is drawn as a quadratic through the midpoints of consecutive spans, which is
+ * the standard way to round a polyline without it departing from the data: the curve passes
+ * through every midpoint and is pulled toward every sample. Straight `lineTo` segments left
+ * visible corners at 150 points across 400 pixels. */
+function polyline(ctx, values, w, h, low, high, colour, window = 1) {
+  const series = window > 1 ? smoothed(values, window) : values;
+  if (series.length < 2) return;
   const span = (high - low) || 1;
+  const px = i => (i / (series.length - 1)) * w;
+  const py = i => h - ((series[i] - low) / span) * (h - 4) - 2;
+
   ctx.beginPath();
-  values.forEach((value, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = h - ((value - low) / span) * (h - 4) - 2;
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-  });
+  ctx.moveTo(px(0), py(0));
+  for (let i = 1; i < series.length - 1; i++) {
+    const midX = (px(i) + px(i + 1)) / 2;
+    const midY = (py(i) + py(i + 1)) / 2;
+    ctx.quadraticCurveTo(px(i), py(i), midX, midY);
+  }
+  ctx.lineTo(px(series.length - 1), py(series.length - 1));
   ctx.strokeStyle = colour;
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.7;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   ctx.stroke();
 }
+
+/* How many frames each chart averages over. Five for secondary structure, which changes in
+ * whole residues and is already smoothed in time by the assigner's own hysteresis, and nine
+ * for the radius of gyration, which is the noisier of the two by far. Both are a small
+ * fraction of a 150-frame trajectory, so a real feature cannot be averaged away: the
+ * collapse takes tens of frames. */
+export const SS_SMOOTHING = 5;
+export const RG_SMOOTHING = 9;
 
 function playhead(ctx, index, total, w, h) {
   if (total < 2) return;
@@ -671,19 +730,21 @@ export function drawSSChart(canvas, history, index) {
   const { ctx, w, h } = prepare(canvas);
   const palette = COLOUR_MODES.structure;
   const hex = v => `#${v.toString(16).padStart(6, '0')}`;
-  polyline(ctx, history.coil, w, h, 0, 1, hex(palette.C));
-  polyline(ctx, history.sheet, w, h, 0, 1, hex(palette.E));
-  polyline(ctx, history.helix, w, h, 0, 1, hex(palette.H));
+  polyline(ctx, history.coil, w, h, 0, 1, hex(palette.C), SS_SMOOTHING);
+  polyline(ctx, history.sheet, w, h, 0, 1, hex(palette.E), SS_SMOOTHING);
+  polyline(ctx, history.helix, w, h, 0, 1, hex(palette.H), SS_SMOOTHING);
   playhead(ctx, index, history.helix.length, w, h);
 }
 
 export function drawRgChart(canvas, rg, index) {
   const { ctx, w, h } = prepare(canvas);
   if (!rg.length) return;
-  // Scaled to the trajectory's own range, so the collapse fills the panel. A fixed 0-to-30
-  // axis would draw every fold as a nearly flat line near the top.
-  const low = Math.min(...rg), high = Math.max(...rg);
-  polyline(ctx, rg, w, h, low, high, '#8FB4FF');
+  // Scaled to the SMOOTHED range, so the curve fills the panel. Scaling to the raw range
+  // leaves the smoothed trace sitting in a thin band up the middle, with the space above and
+  // below it holding nothing but the noise that was just removed.
+  const series = smoothed(rg, RG_SMOOTHING);
+  const low = Math.min(...series), high = Math.max(...series);
+  polyline(ctx, rg, w, h, low, high, '#8FB4FF', RG_SMOOTHING);
   playhead(ctx, index, rg.length, w, h);
 }
 

@@ -216,16 +216,28 @@ def check_gallery_cards(problems: list[str], report: dict) -> None:
 
 
 def check_links(problems: list[str], report: dict) -> None:
+    """Every app in links.json must reach the page somehow.
+
+    It used to be a loop over cards. Marc removed the shop panel on 2026-09-01 and the
+    header link carries the advertisement instead, so what is checked now is that each entry
+    is actually referenced - by a loop, or by name through Jinja's `selectattr`. The point is
+    unchanged and is the one this whole tool exists for: an entry in the data that nothing
+    renders is a dead declaration.
+    """
     if not LINKS.exists():
         problems.append("static/links.json is missing")
         return
     apps = [a["id"] for a in json.loads(read(LINKS))["apps"]]
     template = read(TEMPLATES / "index.html")
-    loop_present = "for app in links.apps" in template
-    report["links"] = {"apps": apps, "shopLoopPresent": loop_present}
-    if not loop_present:
-        problems.append("the template has no shop-window loop over links.apps, so "
-                        f"{len(apps)} app cards are unreachable from the page")
+    looped = "for app in links.apps" in template
+    named = [app for app in apps if f"'{app}'" in template or f'"{app}"' in template]
+    report["links"] = {"apps": apps, "shopLoopPresent": looped, "namedInTemplate": named}
+    if looped:
+        return
+    unreached = [app for app in apps if app not in named]
+    for app in unreached:
+        problems.append(f"{app!r} is in links.json and the template neither loops over the "
+                        f"apps nor names it, so nothing renders it")
 
 
 def main() -> int:

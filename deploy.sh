@@ -155,7 +155,12 @@ page=$(curl -sf -m 20 "$BASE/")
 # it. PLAN section 11's Phase 5 gate, run against the deployed site rather than a template.
 echo "$page" | tr -s ' \n\t' ' ' | grep -q "It is not a prediction of an unknown structure, it is not a physical folding pathway, and no protein folds this way." \
   && check "the disclosure paragraph is live" yes || check "the disclosure paragraph is live" ""
-echo "$page" | grep -q 'id="disclosure"' && check "the engine disclosure line is present" yes || check "the engine disclosure line is present" ""
+# The amber disclosure line was removed on Marc's instruction, 2026-09-01. The claim it
+# carried is still on the page in two places: the stage badge, which names the engine and
+# where it ran and never scrolls away, and the disclosure paragraph checked above. Asserted
+# ABSENT rather than simply dropped from the checks, so it cannot creep back unnoticed.
+echo "$page" | grep -q 'id="disclosure"' && check "the removed disclosure line is back" "" \
+  || check "the disclosure line is gone, as instructed" yes
 echo "$page" | grep -q 'id="badge-engine"' && check "the stage badge is present" yes || check "the stage badge is present" ""
 
 # Cache-Control, with a GET.

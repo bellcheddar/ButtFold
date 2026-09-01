@@ -25,9 +25,15 @@
          on a desktop; on a phone it wraps to three lines and pushes the protein, the
          disclosure and the stage below the fold, which is the opposite of what a shop link
          is for. Both are in the DOM so the link is one accessible element either way. -->
-    <a class="shop-link" href="#shop">
-      <span class="on-wide">Get PhoneFold for iPhone, iPad, Mac, Watch and Vision Pro &rarr;</span>
-      <span class="on-narrow">Get the app &rarr;</span>
+    <!-- The shop window's panel is gone on Marc's instruction, 2026-09-01, and this line
+         carries the advertisement instead. It is still driven by static/links.json, so the
+         before/after-live mechanism survives: when PhoneFold clears review, setting its
+         app_store_url points this at the App Store with no template edit. -->
+    {% set phonefold = links.apps | selectattr('id', 'equalto', 'phonefold') | first %}
+    <a class="shop-link" href="{{ phonefold.app_store_url or phonefold.fallback_url }}"
+       target="_blank" rel="noopener noreferrer">
+      <span class="on-wide">{% if phonefold.app_store_url %}Get PhoneFold on the App Store{% else %}PhoneFold for iPhone, iPad, Mac, Watch and Vision Pro{% endif %} &rarr;</span>
+      <span class="on-narrow">PhoneFold &rarr;</span>
     </a>
     <a class="header-link" href="mailto:marc@marcdeller.com">Contact</a>
   </div>
@@ -35,12 +41,13 @@
 
 <main class="wrap">
 
-  <!-- Title block: the protein name large, and directly beneath it in amber the engine
-       disclosure line. Exactly where the phone app places it. PLAN section 6.4 and 7. -->
+  <!-- Title block. The amber engine-disclosure line that used to sit here is gone on Marc's
+       instruction, 2026-09-01. The claim it carried has not left the page: the stage badge
+       states the engine and where it ran, permanently and without scrolling away, and the
+       disclosure paragraph below the gallery says it in full. -->
   <div class="title-block">
     <h1 class="protein-name" id="protein-name">Loading</h1>
     <p class="protein-sub" id="protein-sub"></p>
-    <p class="disclosure" id="disclosure"></p>
     <p class="no-wasm-note" id="boot-error"></p>
   </div>
 
@@ -50,10 +57,15 @@
   <div class="controls">
     <div class="control">
       <span class="label">Colour</span>
+      <!-- Short labels, and they are the app's own: PhoneFold's ColourMode calls these
+           "N->C" and "Phobic" in its compact form. Five colour modes, five styles and three
+           engines have to share one line. -->
       <div class="segmented" id="colour-mode" role="group" aria-label="Colour mode">
         <button type="button" data-mode="structure" aria-pressed="true">Structure</button>
-        <button type="button" data-mode="colourblind" aria-pressed="false">Colour-blind</button>
-        <button type="button" data-mode="confidence" aria-pressed="false">Confidence</button>
+        <button type="button" data-mode="rainbow" aria-pressed="false">N&rarr;C</button>
+        <button type="button" data-mode="phobic" aria-pressed="false">Phobic</button>
+        <button type="button" data-mode="confidence" aria-pressed="false">Conf</button>
+        <button type="button" data-mode="colourblind" aria-pressed="false">CB&nbsp;safe</button>
       </div>
     </div>
     <div class="control">
@@ -74,7 +86,7 @@
              always available: it is the fallback for a browser that cannot run the module,
              so it must not itself depend on one. A disabled control carries the reason in
              its title rather than just looking broken. -->
-        <button type="button" data-source="live" aria-pressed="false" disabled>Fold it live</button>
+        <button type="button" data-source="live" aria-pressed="false" disabled>Live</button>
         <button type="button" data-source="queued" aria-pressed="false"
                 title="Fold it on the server instead: one job at a time, up to {{ residueCap }} residues">On the server</button>
       </div>
@@ -98,6 +110,10 @@
 
   <div class="readouts">
     <div class="readout"><span class="k">Rg (&#197;)</span><span class="v" id="r-rg">&mdash;</span></div>
+    <!-- Compaction: 0 at the denatured radius of gyration for a chain this length and 1 at
+         the native one, both from measured scaling laws. Normalised by length, so it says
+         how folded this protein is rather than how big it is. -->
+    <div class="readout"><span class="k">Compact</span><span class="v" id="r-compact">&mdash;</span></div>
     <div class="readout"><span class="k">Native</span><span class="v" id="r-q">&mdash;</span></div>
     <div class="readout"><span class="k">Contacts</span><span class="v" id="r-contacts">&mdash;</span></div>
     <div class="readout"><span class="k">Helix</span><span class="v helix" id="r-helix">&mdash;</span></div>
@@ -111,12 +127,12 @@
     <div class="chart">
       <h3>Secondary structure over time</h3>
       <canvas id="chart-ss"></canvas>
-      <div class="legend"><span class="h">helix</span> &middot; <span class="e">sheet</span> &middot; <span class="c">coil</span></div>
+      <div class="legend"><span class="h">helix</span> &middot; <span class="e">sheet</span> &middot; <span class="c">coil</span> &middot; 5-frame mean</div>
     </div>
     <div class="chart">
       <h3>Radius of gyration over time</h3>
       <canvas id="chart-rg"></canvas>
-      <div class="legend">the collapse, in &#197;ngstr&ouml;ms</div>
+      <div class="legend">the collapse, in &#197;ngstr&ouml;ms &middot; 9-frame mean</div>
     </div>
   </div>
 
@@ -160,42 +176,6 @@
     folds this way. The music is a faithful map of the simulation's events, and nothing
     more.</p>
   </div>
-
-  <div class="section-head" id="shop">
-    <h2>Get the app</h2>
-    <span class="note">the real thing, on a device</span>
-  </div>
-
-  <!-- The shop window, PLAN section 8. Before/after live is DATA, not code: while
-       app_store_url is null a card shows an honest "In review at the App Store" tag and
-       links to its fallback. When an app goes live, one field in static/links.json changes
-       and the card flips to the store link. No template edit and no code path change, which
-       is what makes the flip verifiable by diffing two GETs of the live page.
-
-       Apple's official "Download on the App Store" badge artwork is deliberately NOT used
-       here yet: it may only be shown for an app that is actually on the store, and none of
-       these are. Using it early would be both a trademark problem and a lie. -->
-  {% for app in links.apps if app.featured %}
-  <div class="shop-feature">
-    <div class="shop-feature-body">
-      <h3>{{ app.name }}</h3>
-      <p class="blurb">{{ app.blurb }}</p>
-      <p class="platforms">{{ app.platforms|join(' &middot; ')|safe }}</p>
-      {% if app.app_store_url %}
-      <a class="store-link" href="{{ app.app_store_url }}" rel="noopener">
-        Download on the App Store</a>
-      {% else %}
-      <p class="status-tag">
-        {% if app.status == 'in_review' %}In review at the App Store{% else %}In development{% endif %}
-      </p>
-      {% if app.fallback_url %}
-      <a class="fallback-link" href="{{ app.fallback_url }}" rel="noopener">
-        The source, in the meantime &rarr;</a>
-      {% endif %}
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
 
 </main>
 

@@ -19,6 +19,7 @@
  */
 
 import { StageCamera } from './StageCamera.js';
+import { HYDROPATHY } from './MusicalScale.js';
 import { buildCartoon, buildIndices, buildTables, meshSize, profileInUnits, PROFILE }
   from './cartoon.js';
 
@@ -43,14 +44,53 @@ export const COLOUR_MODES = {
   },
 };
 
-/* The confidence ramp, a third mode: orange below 50, amber below 70, green above 70. It
- * colours by how sure P-SEA is rather than by what it decided, which is the honest view
- * early in a fold when it is not sure of anything. */
+/* The confidence ramp: orange below 50, amber below 70, green above 70 (PLAN section 6.1).
+ * It colours by how much of the fold has happened at each residue, which is the honest view
+ * early on, when most of the chain has not arrived. */
 export function confidenceColour(confidence) {
   const percent = confidence * 100;
   if (percent < 50) return 0xff6b35;
   if (percent < 70) return 0xfcb900;
   return 0x35d07f;
+}
+
+/* ---------------------------------------------------------------- N to C, and Phobic ----
+ * Both ported from PhoneFold's `FoldRender/Colouring.swift`, including its short labels:
+ * the app calls these "N->C" and "Phobic" in its own compact form. */
+
+function hsv(hue, saturation, value) {
+  const i = Math.floor(hue * 6) % 6;
+  const f = hue * 6 - Math.floor(hue * 6);
+  const p = value * (1 - saturation);
+  const q = value * (1 - f * saturation);
+  const t = value * (1 - (1 - f) * saturation);
+  const [r, g, b] = [[value, t, p], [q, value, p], [p, value, t],
+                     [p, q, value], [t, p, value], [value, p, q]][i];
+  return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
+}
+
+/** N to C through the spectrum. Hue only, at fixed saturation and value, so no residue is
+ *  darker than another and the eye reads position rather than brightness. Stops at 0.75 of
+ *  the way round: going the whole way makes the two termini the same colour, which defeats
+ *  the point of the mode. */
+export function rainbowColour(t) {
+  return hsv(Math.min(Math.max(t, 0), 1) * 0.75, 0.85, 1.0);
+}
+
+function mixHex(a, b, t) {
+  const k = Math.min(Math.max(t, 0), 1);
+  const ch = shift => Math.round(((a >> shift) & 0xff)
+    + (((b >> shift) & 0xff) - ((a >> shift) & 0xff)) * k);
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
+/** Kyte-Doolittle, mapped cyan (hydrophilic, -4.5) through slate to amber (hydrophobic,
+ *  +4.5), so a packing core lights up warm. Which is the thing worth watching: the core
+ *  forms first and completely, and this is the mode that shows it. */
+export function hydrophobicityColour(hydropathy) {
+  const t = Math.min(Math.max((hydropathy + 4.5) / 9.0, 0), 1);
+  return t < 0.5 ? mixHex(0x22e5ff, 0x6b7c93, t * 2)
+                 : mixHex(0x6b7c93, 0xfcb900, (t - 0.5) * 2);
 }
 
 export class Stage {
@@ -181,6 +221,18 @@ export class Stage {
     this.renderer.render(this.scene, this.camera);
   }
 
+  /** Draw the scene again without rebuilding anything.
+   *
+   * The idle orbit and a drag move the camera, not the protein, so they need a draw and not
+   * a sweep. Sweeping anyway rebuilt 16,562 vertices sixty times a second to spin a camera:
+   * measured at 34 ms a frame on a software rasteriser, which is 29 fps and enough main-
+   * thread load to starve the audio thread. The geometry changes when the trajectory frame
+   * does, which during playback is 24 times a second and while paused is never.
+   */
+  redraw() {
+    if (this.mesh) this.renderer.render(this.scene, this.camera);
+  }
+
   _assumedCertainty(ss, n) {
     if (!this._certaintyScratch || this._certaintyScratch.length !== n) {
       this._certaintyScratch = new Float32Array(n);
@@ -199,7 +251,7 @@ export class Stage {
     const byCode = [palette.C, palette.H, palette.E];
     const colour = new this.THREE.Color();
     const vertices = this.buffers.structure.length;
-    const byConfidence = this.colourMode === 'confidence';
+    const mode = this.colourMode;
 
     // Two colours per structure code is all the ramp needs, so the conversion is hoisted
     // out of the per-vertex loop: at 20 segments and 10 samples a residue this runs about
@@ -211,20 +263,37 @@ export class Stage {
       return rgb;
     };
 
+    // Everything that varies per RESIDUE is looked up through the vertex's own residue
+    // index, which the sweep wrote. The sweep does not need to know what any mode means.
+    const lastResidue = Math.max(n - 1, 1);
     for (let v = 0; v < vertices; v++) {
-      const hex = byConfidence
-        ? confidenceColour(confidence ? (confidence[this.buffers.residue[v]] ?? 0) : 0)
-        : (byCode[this.buffers.structure[v]] ?? palette.C);
+      const residue = this.buffers.residue[v];
+      let hex;
+      if (mode === 'confidence') {
+        hex = confidenceColour(confidence ? (confidence[residue] ?? 0) : 0);
+      } else if (mode === 'rainbow') {
+        hex = rainbowColour(residue / lastResidue);
+      } else if (mode === 'phobic') {
+        hex = hydrophobicityColour(this.hydropathy ? (this.hydropathy[residue] ?? 0) : 0);
+      } else {
+        hex = byCode[this.buffers.structure[v]] ?? palette.C;
+      }
       const rgb = rgbOf(hex);
       array[3 * v] = rgb[0];
       array[3 * v + 1] = rgb[1];
       array[3 * v + 2] = rgb[2];
     }
     colours.needsUpdate = true;
-    void n;
   }
 
   setColourMode(mode) { this.colourMode = mode; }
+
+  /** The sequence, for the hydrophobicity mode. Converted to a per-residue Kyte-Doolittle
+   *  array once per fold rather than per vertex per frame: at 20 segments and 10 samples a
+   *  residue that lookup would run about 160,000 times a frame. */
+  setSequence(sequence) {
+    this.hydropathy = Float32Array.from(sequence ?? '', code => HYDROPATHY[code] ?? 0);
+  }
 
   /* One frame of the idle spin, called by the player's loop even when paused, so the
    * structure is always presented rather than sitting still like a screenshot. */

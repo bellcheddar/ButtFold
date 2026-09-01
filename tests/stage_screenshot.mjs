@@ -172,7 +172,7 @@ const modes = await evaluate(`(async () => {
   const out = {};
   const canvas = document.querySelector('#stage canvas');
   const player = window.buttfoldPlayer;
-  for (const mode of ['structure', 'colourblind', 'confidence']) {
+  for (const mode of ['structure', 'colourblind', 'confidence', 'rainbow', 'phobic']) {
     document.querySelector('#colour-mode button[data-mode="' + mode + '"]').click();
     const frame = player.frames[player.index];
     player.stage.render(frame.points, frame.ss, frame.confidence);
@@ -208,13 +208,23 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1512, 982], [1366, 768
   desktops.push(await evaluate(`(() => {
     const play = document.getElementById('play').getBoundingClientRect();
     const stage = document.getElementById('stage').getBoundingClientRect();
+    const controls = document.querySelector('.controls');
+    // One line means every group shares the row's top edge. Comparing heights would pass a
+    // wrap that happened to leave the container the same height.
+    const tops = [...controls.querySelectorAll('.control')]
+      .map(el => Math.round(el.getBoundingClientRect().top));
+    const readouts = [...document.querySelectorAll('.readout')]
+      .map(el => Math.round(el.getBoundingClientRect().top));
     return {
       size: '${width}x${height}',
       playBottom: Math.round(play.bottom),
       viewportHeight: window.innerHeight,
       stageHeight: Math.round(stage.height),
       stageShare: stage.height / window.innerHeight,
-      scrolled: window.scrollY,
+      controlRows: new Set(tops).size,
+      controlsWidth: Math.round(controls.scrollWidth),
+      controlsFits: controls.scrollWidth <= controls.clientWidth + 1,
+      readoutRows: new Set(readouts).size,
     };
   })()`));
 }
@@ -257,7 +267,9 @@ for (const [mode, m] of Object.entries(modes)) {
 for (const d of desktops) {
   console.log(`  ${d.size.padEnd(9)} play bar ends at ${d.playBottom}px of `
               + `${d.viewportHeight}px, stage ${d.stageHeight}px `
-              + `(${(d.stageShare * 100).toFixed(0)}% of the viewport)`);
+              + `(${(d.stageShare * 100).toFixed(0)}%), controls ${d.controlRows} row`
+              + `${d.controlRows === 1 ? '' : 's'} (${d.controlsWidth}px), `
+              + `readouts ${d.readoutRows} row${d.readoutRows === 1 ? '' : 's'}`);
 }
 console.log(`mobile 390px  body ${mobile.bodyScrollWidth}px wide, stage `
             + `${mobile.stageWidth}x${mobile.stageHeight} of ${mobile.viewportHeight}px`);
@@ -303,6 +315,15 @@ for (const d of desktops) {
   if (d.playBottom > d.viewportHeight) {
     failures.push(`at ${d.size} the Play bar ends at ${d.playBottom}px, below the `
                   + `${d.viewportHeight}px fold: a visitor has to scroll to press Play`);
+  }
+  if (d.controlRows !== 1) {
+    failures.push(`at ${d.size} the control bar wraps to ${d.controlRows} rows`);
+  }
+  if (!d.controlsFits) {
+    failures.push(`at ${d.size} the control bar overflows its container (${d.controlsWidth}px)`);
+  }
+  if (d.readoutRows !== 1) {
+    failures.push(`at ${d.size} the readouts wrap to ${d.readoutRows} rows`);
   }
   // And the structure must still be the subject: a layout that fits by shrinking the stage
   // to a strip has solved the wrong problem.

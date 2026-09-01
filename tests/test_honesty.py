@@ -55,15 +55,13 @@ def visible_text(html: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", without_comments)).strip()
 
 
-def featured_block(html: str) -> str:
-    """Just the featured app's card, scoped exactly rather than by a text window.
-
-    A window that overshoots reads whatever follows the card, and an earlier version of
-    this test did exactly that and reported the wrong card's state.
-    """
-    start = html.index('class="shop-feature"')
-    end = html.index("</main>", start)
-    return visible_text(html[start:end])
+def shop_link(html: str) -> str:
+    """The header's PhoneFold link, which is what carries the advertisement now that the
+    panel is gone. Scoped exactly rather than by a text window: a window that overshoots
+    reads whatever follows, and an earlier version of this test did exactly that."""
+    start = html.index('class="shop-link"')
+    end = html.index("</a>", start)
+    return html[start:end]
 
 
 @pytest.fixture()
@@ -75,14 +73,23 @@ def client():
         yield c
 
 
-def test_the_engine_disclosures_are_byte_for_byte_the_apps_own():
-    """Quotations, so they are compared exactly. A paraphrase is a different claim."""
+def test_the_engine_claim_is_still_made_on_the_stage():
+    """Marc removed the amber line under the title on 2026-09-01. The CLAIM did not go.
+
+    PLAN section 7 asked for the app's verbatim strings in that position; they are no longer
+    on the page. What remains is the badge, which states the engine and where it ran in the
+    stage's own corner and never scrolls away while anything plays, and the disclosure
+    paragraph below the gallery, which says it in full as body text. Two placements rather
+    than three, and this asserts the badge still names both engines: a generative entry must
+    never be able to appear labelled as a Gō fold.
+    """
     player = (REPO / "static" / "js" / "player.js").read_text(encoding="utf-8")
-    assert DISCLOSURE_GO in player
-    assert DISCLOSURE_GENERATIVE in player
-    # The em dash is load-bearing: it is what makes this a quotation rather than a rewrite.
-    assert "—" in DISCLOSURE_GO
-    assert player.count(DISCLOSURE_GO) == 1, "the string is duplicated and can drift"
+    assert "toward a known structure" in player, "the badge no longer says what the Gō model does"
+    assert "invented from noise" in player, "the badge no longer distinguishes a generative entry"
+    assert "precomputed" in player and "in your browser" in player and "on the server" in player, (
+        "the badge no longer says where the fold was computed")
+    # And the line really is gone, rather than hidden.
+    assert DISCLOSURE_GO not in player
 
 
 def test_the_morph_disclosure_is_absent_because_no_morph_engine_ships():
@@ -121,14 +128,15 @@ def test_the_engine_badge_element_is_present_and_says_where(client):
 
 # ------------------------------------------------------------------ the shop window -----
 
-def test_every_app_in_the_data_is_rendered(client):
-    """links.json is the shop window's only source, so an entry nothing renders is a dead
-    declaration - the class of thing tools/audit_wiring.py exists to catch."""
+def test_the_phonefold_link_is_still_driven_by_the_data(client):
+    """The shop panel was removed on 2026-09-01 and the header link carries the
+    advertisement instead. It is still driven by links.json, so the before/after-live
+    mechanism survives: setting an app_store_url flips it with no template edit."""
     links = json.loads(LINKS.read_text())
-    assert links["apps"], "the shop window has no apps at all"
-    text = visible_text(client.get("/").get_data(as_text=True))
-    for entry in links["apps"]:
-        assert entry["name"] in text, f"{entry['name']} is in links.json and not on the page"
+    entry = next(a for a in links["apps"] if a["id"] == "phonefold")
+    page = client.get("/").get_data(as_text=True)
+    assert "PhoneFold" in visible_text(page)
+    assert (entry["app_store_url"] or entry["fallback_url"]) in page
 
 
 def test_no_app_is_shown_as_live_before_it_is(client):
@@ -165,7 +173,9 @@ def test_flipping_links_json_flips_the_card_with_no_code_change(client, monkeypa
 
     before_html = client.get("/").get_data(as_text=True)
     before = visible_text(before_html)
-    assert "In review at the App Store" in featured_block(before_html)
+    entry = next(a for a in json.loads(LINKS.read_text())["apps"] if a["id"] == "phonefold")
+    assert entry["app_store_url"] is None, "PhoneFold now has a store URL; update this test"
+    assert entry["fallback_url"] in shop_link(before_html)
 
     links = json.loads(LINKS.read_text())
     for entry in links["apps"]:
@@ -192,18 +202,17 @@ def test_flipping_links_json_flips_the_card_with_no_code_change(client, monkeypa
 
     after_html = client.get("/").get_data(as_text=True)
     after = visible_text(after_html)
-    card = featured_block(after_html)
-    assert "Download on the App Store" in card, "the store link did not appear on the card"
-    assert "In review at the App Store" not in card, "the card still says it is in review"
-    assert "apps.apple.com/app/id1234567890" in after_html, "the store URL is not linked"
+    link = shop_link(after_html)
+    assert "apps.apple.com/app/id1234567890" in link, "the link did not flip to the store"
+    assert "on the App Store" in link, "the wording did not change with the link"
     assert before != after, "changing links.json changed nothing in the served page"
     # Only the card changed. A flip that rewrote the page around it would pass every
     # assertion above and be the wrong mechanism, so the rest of the page is compared for
     # equality with the card's own block cut out of both.
-    def without_card(html: str) -> str:
-        head = html[:html.index('class="shop-feature"')]
-        tail = html[html.index("</main>"):]
+    def without_the_link(html: str) -> str:
+        head = html[:html.index('class="shop-link"')]
+        tail = html[html.index("</a>", html.index('class="shop-link"')):]
         return visible_text(head + tail)
 
-    assert without_card(before_html) == without_card(after_html), (
-        "flipping one links.json field changed the page outside the shop card")
+    assert without_the_link(before_html) == without_the_link(after_html), (
+        "flipping one links.json field changed the page outside the PhoneFold link")
