@@ -199,3 +199,30 @@ be a different trajectory rather than a cache hit that looks like a very fast fo
 costs exactly the spread P0-3b measured, and the queued trp-cage finished at Q 0.892 against
 the gallery's 1.000. Both are good folds, and the smoke test's bar is set from that
 measurement rather than from the gallery's number.
+
+### Phase 5, and where this stops
+
+The shop window is built from `links.json` with the honest state as the default: an app with
+no store URL shows an "In review at the App Store" tag that is deliberately not dimmed, and
+Apple's badge wording is not used at all until there is a real store URL behind it. Flipping
+one field flips the card, verified by diffing two GETs.
+
+The bug worth recording is the confidence colour ramp. It was handed `null` for per-residue
+confidence and painted every residue the same "below 50" orange. The module was imported,
+the button was wired, the function was called, the colours visibly changed when you pressed
+it, and `audit_wiring.py` could see nothing wrong - because nothing was structurally wrong.
+It was found by asking a question no existing check asked: do the three colour modes render
+*differently*? They now must, on pixels, and the screenshot gate fails if any two match.
+
+The mobile pass turned up something smaller and the same shape: PLAN section 8's shop-link
+wording is right on a desktop and wraps to three lines at 390 px, pushing the protein name,
+the disclosure and the stage below the fold. Two labels, one anchor.
+
+**This is where the build stops for input.** Phases 0 to 5 are done and every
+machine-verifiable gate is green: 50 Python tests, 15 JavaScript tests, the wiring audit,
+and four browser gates (the stage renders, the sound reaches an audio device, a browser
+folds trp-cage live, the droplet queue returns a fold and then serves it from cache in
+0.5 s instead of 6.0). Five things need Marc, and they are in BLOCKERS.md. Only one of them
+blocks further building: Phase 6 is the deploy, and it creates a public subdomain, a
+certificate and a launcher entry that points mdeller.com's front page at this. That is his
+call, not mine.
