@@ -44,6 +44,12 @@ const WHERE_BADGE = {
   queued: 'on the server',
 };
 
+/* The badge reads as one sentence: engine, then where, then what is happening. So the status
+ * has to agree with the place beside it. It used to be a separate paragraph under the
+ * transport, which could say "folding on the server" while the badge said "precomputed" -
+ * two lines contradicting each other about the same fold. `_status` is the only way anything
+ * writes there, and it sets the place at the same time. */
+
 class Player {
   constructor() {
     this.frames = [];
@@ -100,7 +106,7 @@ class Player {
     if (!response.ok) throw new Error(`fold ${foldId}: HTTP ${response.status}`);
     this._adoptFold(await response.json());
     this._setSource('baked');
-    $('live-status').textContent = '';
+    this._status('');
     document.querySelectorAll('.card').forEach(card => {
       card.setAttribute('aria-pressed', String(card.dataset.foldId === foldId));
     });
@@ -208,8 +214,7 @@ class Player {
     this.audio.stop();
     $('play').textContent = 'Play';
     this.worker?.postMessage({ type: 'cancel' });
-    this._setSource('queued');
-    $('live-status').textContent = 'asking the server';
+    this._status('asking', 'queued');
 
     const response = await fetch('/api/queue', {
       method: 'POST',
@@ -220,20 +225,21 @@ class Player {
 
     if (response.status === 429) {
       // Not an error: it is the cap doing its job, and the gallery is right there.
-      $('live-status').textContent =
-        `${body.error} Try again shortly, or play the gallery version.`;
+      // Not an error: it is the cap doing its job, and the gallery is right there.
+      this._status(`queue full, try again shortly`);
+      $('audio-note').textContent = body.error;
       return;
     }
     if (!response.ok && response.status !== 202) {
-      $('live-status').textContent = body.error ?? `the server said ${response.status}`;
+      this._status(`refused: ${body.error ?? response.status}`);
       return;
     }
     if (body.cached) {
-      $('live-status').textContent = 'this fold was already computed; loading it';
+      this._status('already computed, loading');
       await this._loadQueuedResult(body.result_url);
       return;
     }
-    $('live-status').textContent = 'queued';
+    this._status('queued');
     this._pollQueue(body.job_id);
   }
 
@@ -245,26 +251,25 @@ class Player {
         const response = await fetch(`/api/queue/${jobId}`);
         status = await response.json();
       } catch (err) {
-        $('live-status').textContent = `lost contact with the server: ${err.message}`;
+        this._status(`lost contact: ${err.message}`);
         clearInterval(this._queueTimer);
         return;
       }
       if (status.state === 'queued') {
-        $('live-status').textContent =
-          `queued, position ${status.position} - this server folds one at a time`;
+        // The badge already says "on the server", so the status says only what is new.
+        this._status(`queued, position ${status.position} of one at a time`);
       } else if (status.state === 'running') {
         // Progress is the growing frame file's byte count, which maps to frames exactly.
         const percent = status.frames_total
           ? Math.round(100 * status.frames_done / status.frames_total) : 0;
-        $('live-status').textContent = `folding on the server, ${percent}%`;
+        this._status(`folding, ${percent}%`);
       } else if (status.state === 'done') {
         clearInterval(this._queueTimer);
         await this._loadQueuedResult(status.result_url);
       } else {
         clearInterval(this._queueTimer);
         // Reported honestly, the timeout included. A job that was killed says so.
-        $('live-status').textContent =
-          `the server ${status.state} this fold${status.error ? `: ${status.error}` : ''}`;
+        this._status(`${status.state}${status.error ? `: ${status.error}` : ''}`);
       }
     }, 2000);
   }
@@ -272,7 +277,7 @@ class Player {
   async _loadQueuedResult(url) {
     const response = await fetch(url);
     if (!response.ok) {
-      $('live-status').textContent = `could not load the result: HTTP ${response.status}`;
+      this._status(`could not load the result: HTTP ${response.status}`);
       return;
     }
     const fold = await response.json();
@@ -280,9 +285,8 @@ class Player {
     // own artefact format precisely so nothing downstream needs to know where it came from.
     this._adoptFold(fold);
     const seconds = fold.queued?.seconds;
-    $('live-status').textContent = seconds
-      ? `folded on the server in ${seconds.toFixed(1)} s, seed ${fold.queued.seed}`
-      : 'loaded from the server';
+    this._status(seconds ? `folded in ${seconds.toFixed(1)} s, seed ${fold.queued.seed}`
+                         : 'loaded', 'queued');
   }
 
   /* Fold the current protein live, in a worker, streaming frames into the same player. */
@@ -303,7 +307,7 @@ class Player {
     this.frames = [];
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.contactsSoFar = 0;
-    $('live-status').textContent = 'starting the model';
+    this._status('starting the model', 'live');
 
     // A fold the visitor cannot see is a fold the browser may stop. P0-2 measured Safari
     // suspending a worker whose page is hidden, at 0% CPU, and Chrome taking 1.9x as long
@@ -315,24 +319,33 @@ class Player {
     this.worker.onmessage = (event) => {
       const message = event.data;
       if (message.type === 'ready') {
-        $('live-status').textContent = 'folding';
+        this._status('folding');
       } else if (message.type === 'frame') {
         this._acceptLiveFrame(message);
       } else if (message.type === 'done') {
         const wall = (performance.now() - began) / 1000;
-        $('live-status').textContent =
-          `folded ${message.frames} frames in ${message.seconds.toFixed(1)} s `
-          + `(${wall.toFixed(1)} s of wall clock), final Q ${message.q.toFixed(3)}`;
+        this._status(`folded ${message.frames} frames in ${message.seconds.toFixed(1)} s, `
+                     + `final Q ${message.q.toFixed(3)}`);
+        void wall;
         this._finishLive();
       } else if (message.type === 'cancelled') {
-        $('live-status').textContent = `stopped after ${message.frames} frames`;
+        this._status(`stopped after ${message.frames} frames`);
       } else if (message.type === 'error') {
-        $('live-status').textContent = `the fold failed: ${message.message}`;
+        this._status(`the fold failed: ${message.message}`);
         console.error(message.message);
       }
     };
+    // A worker that cannot load its own module graph fires `error` with an EMPTY message:
+    // the browser will not say which import failed, for cross-origin reasons that apply
+    // even same-origin. That is what "the worker failed to start: undefined" was, and the
+    // cause was nginx serving `go_model.mjs` as application/octet-stream, which a browser
+    // refuses to import as a module. So the message says where to look rather than
+    // repeating a blank.
     this.worker.onerror = (e) => {
-      $('live-status').textContent = `the worker failed to start: ${e.message}`;
+      const detail = e.message || 'the browser gave no reason, which usually means one of '
+        + 'its imports was served with the wrong content type';
+      this._status(`the fold could not start: ${detail}`);
+      console.error('worker failed to start', e);
     };
 
     this.worker.postMessage({
@@ -363,7 +376,7 @@ class Player {
     this._show(this.frames.length - 1);
     $('seek').max = String(this.frames.length - 1);
     const percent = Math.round(100 * message.step / message.steps);
-    $('live-status').textContent = `folding, ${percent}% (${this.frames.length} frames)`;
+    this._status(`folding, ${percent}% (${this.frames.length} frames)`);
   }
 
   _finishLive() {
@@ -388,9 +401,7 @@ class Player {
         const away = (performance.now() - this._hiddenAt) / 1000;
         const progressed = this.frames.length - this._framesAtHide;
         if (away > 3 && progressed === 0) {
-          $('live-status').textContent =
-            `your browser paused the fold while this tab was hidden `
-            + `(${away.toFixed(0)} s, no frames); it has resumed`;
+          this._status(`paused while the tab was hidden for ${away.toFixed(0)} s, resumed`);
         }
         this._hiddenAt = null;
       }
@@ -407,6 +418,17 @@ class Player {
   _updateBadge() {
     $('badge-engine').textContent = ENGINE_BADGE[this.engine] ?? ENGINE_BADGE.go;
     $('badge-where').textContent = WHERE_BADGE[this.source] ?? WHERE_BADGE.baked;
+  }
+
+  /** Say what is happening, in the badge, beside what is producing it.
+   *
+   * `where` is set here rather than left to drift: the place and the status are one claim,
+   * and a status of "folding" next to a place of "precomputed" is a page arguing with
+   * itself. Passing null leaves the place alone, for a message about the current source.
+   */
+  _status(text, where = null) {
+    if (where) this._setSource(where);
+    $('live-status').textContent = text ?? '';
   }
 
   _show(index) {
@@ -584,13 +606,9 @@ class Player {
       button.addEventListener('click', () => {
         if (button.disabled) return;
         if (button.dataset.source === 'live') {
-          this.foldLive().catch(err => {
-            $('live-status').textContent = `could not start: ${err.message}`;
-          });
+          this.foldLive().catch(err => this._status(`could not start: ${err.message}`));
         } else if (button.dataset.source === 'queued') {
-          this.foldQueued().catch(err => {
-            $('live-status').textContent = `could not reach the server: ${err.message}`;
-          });
+          this.foldQueued().catch(err => this._status(`could not reach the server: ${err.message}`));
         } else if (button.dataset.source === 'baked') {
           this.worker?.postMessage({ type: 'cancel' });
           clearInterval(this._queueTimer);

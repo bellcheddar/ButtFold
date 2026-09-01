@@ -219,6 +219,12 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 }
 .stage-badge .engine { color: var(--bf-amber); }
 .stage-badge .where { color: var(--bf-text-2); }
+/* What is happening, in the same line as what is producing it. Cyan so it reads as live
+   rather than as chrome, and it disappears entirely when there is nothing to say. */
+.stage-badge .status { color: var(--bf-cyan); }
+.stage-badge .status:empty { display: none; }
+.stage-badge .status::before { content: " \00B7  "; color: var(--bf-text-2); }
+.stage-badge .status:empty::before { content: none; }
 
 .stage-hint {
   position: absolute; right: 12px; bottom: 12px;
@@ -317,8 +323,6 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 }
 .audio-note { margin: 4px 0 0; font-size: 13px; color: var(--bf-magenta); }
 .audio-note:empty { display: none; }
-.live-status { margin: 4px 0 0; font: 500 12px/1.5 var(--bf-mono); color: var(--bf-cyan); }
-.live-status:empty { display: none; }
 
 /* ---------------------------------------------------------------- gallery ------------- */
 
@@ -414,7 +418,7 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--bf-text-2); font-size: 13px;
 }
-.site-footer .joke { color: var(--bf-text-4); font-style: italic; }
+.honesty .joke { color: var(--bf-text-4); font-style: italic; }
 
 /* ---------------------------------------------------------------- utilities ----------- */
 

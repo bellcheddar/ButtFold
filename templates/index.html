@@ -101,9 +101,14 @@
   <div class="stage-wrap" id="stage">
     <!-- The persistent engine badge: small, in the corner, always visible while anything
          plays, and it never scrolls away while the animation runs. PLAN section 7. -->
+    <!-- Engine, place, and what is happening, in one line that reads as a sentence. The
+         status used to sit in a separate paragraph under the transport, which said
+         "folding on the server" while the badge two hundred pixels above still said
+         "precomputed". One line cannot contradict itself. -->
     <div class="stage-badge">
       <span class="engine" id="badge-engine">G&#333; model &middot; toward a known structure</span>
       <span class="where" id="badge-where">precomputed</span>
+      <span class="status" id="live-status"></span>
     </div>
     <div class="stage-hint">drag to orbit</div>
   </div>
@@ -148,12 +153,11 @@
            aria-label="Volume">
   </div>
   <p class="score-summary" id="score-summary"></p>
-  <p class="live-status" id="live-status"></p>
   <p class="audio-note" id="audio-note"></p>
 
   <div class="section-head">
     <h2>The gallery</h2>
-    <span class="note">{{ gallery|length }} folds, precomputed on a Mac and served flat</span>
+    <span class="note">{{ gallery|length }} folds</span>
   </div>
   <div class="gallery" id="gallery">
     {% for fold in gallery %}
@@ -170,11 +174,12 @@
        page reaches people with no context. PLAN section 7. Wording pending Marc's approval
        in BLOCKERS.md; the Phase 5 gate greps the served page for it. -->
   <div class="honesty">
-    <p>ButtFold shows a simple physics model relaxing a chain into a structure it already
-    knows, and what a generative network's inventions look and sound like. It is not a
-    prediction of an unknown structure, it is not a physical folding pathway, and no protein
-    folds this way. The music is a faithful map of the simulation's events, and nothing
-    more.</p>
+    <p><span class="joke">Yes, it is a butt-dial joke. That is the only time it will be
+    mentioned.</span> ButtFold shows a simple physics model relaxing a chain into a structure
+    it already knows, and what a generative network's inventions look and sound like. It is
+    not a prediction of an unknown structure, it is not a physical folding pathway, and no
+    protein folds this way. The music is a faithful map of the simulation's events, and
+    nothing more.</p>
   </div>
 
 </main>
@@ -184,7 +189,6 @@
     <p>ButtFold by <a href="https://marcdeller.com">Marc C. Deller, D.Phil.</a>
     &middot; version {{ version }}
     &middot; <a href="mailto:marc@marcdeller.com">marc@marcdeller.com</a></p>
-    <p class="joke">Yes, it is a butt-dial joke. That is the only time it will be mentioned.</p>
   </div>
 </footer>
 

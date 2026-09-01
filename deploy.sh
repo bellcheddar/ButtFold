@@ -200,14 +200,27 @@ fold_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/api/fold/ubiquitin" | tr -d '\
 [[ "$fold_cc" == *"no-cache"* ]] && check "the fold API revalidates" yes \
   || check "the fold API revalidates (got: $fold_cc)" ""
 
-wasm_type=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/wasm/go_model.wasm" | tr -d '\r' | grep -i '^content-type:' || true)
-[[ "$wasm_type" == *"application/wasm"* ]] && check "the wasm serves as application/wasm" yes || check "the wasm serves as application/wasm (got: $wasm_type)" ""
-
-# A second content type, from a different family, because a `types` block inside a location
-# replaces the whole MIME table rather than adding to it: checking only the one type the
-# block was written for is exactly how that goes unnoticed.
-png_type=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/screenshot.png" | tr -d '\r' | grep -i '^content-type:' || true)
-[[ "$png_type" == *"image/png"* ]] && check "images serve as image/png" yes || check "images serve as image/png (got: $png_type)" ""
+# **Every content type the page needs, not the two that came to mind.** Checking the wasm
+# and the png while `.mjs` went out as octet-stream is exactly how a broken live fold shipped:
+# a browser refuses to import a module whose MIME type is not JavaScript, and says nothing.
+types_ok=1
+check_type () {   # path, expected substring
+  local got
+  got=$(curl -sf -m 15 -D - -o /dev/null "$BASE$1" | tr -d '\r' | grep -i '^content-type:' || true)
+  if [[ "$got" != *"$2"* ]]; then
+    printf '    FAIL %s should be %s, got: %s\n' "$1" "$2" "${got:-<none>}"
+    types_ok=0
+  fi
+}
+check_type "/static/v-$build/wasm/go_model.wasm" "application/wasm"
+check_type "/static/v-$build/wasm/go_model.mjs"  "javascript"
+check_type "/static/v-$build/js/player.js"       "javascript"
+check_type "/static/v-$build/styles/fantasy.json" "application/json"
+check_type "/static/v-$build/buttfold.css"       "text/css"
+check_type "/static/screenshot.png"              "image/png"
+check_type "/static/wasm/go_model.mjs"           "javascript"
+[[ $types_ok -eq 1 ]] && check "every asset serves with the right content type" yes \
+                      || check "every asset serves with the right content type" ""
 
 if [[ "$scheme" == "https" ]]; then
   proto=$(curl -sf -m 15 -o /dev/null -w '%{http_version}' "$BASE/")

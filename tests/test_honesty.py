@@ -216,3 +216,32 @@ def test_flipping_links_json_flips_the_card_with_no_code_change(client, monkeypa
 
     assert without_the_link(before_html) == without_the_link(after_html), (
         "flipping one links.json field changed the page outside the PhoneFold link")
+
+
+def test_the_stage_badge_carries_the_status_so_it_cannot_contradict_itself(client):
+    """Engine, place and what is happening, in one line.
+
+    The status used to be a separate paragraph under the transport, which could say
+    "folding on the server" while the badge two hundred pixels above still said
+    "precomputed": two lines making different claims about the same fold. They are now one
+    element, and `_status` in player.js is the only thing that writes there, setting the
+    place at the same time.
+    """
+    page = client.get("/").get_data(as_text=True)
+    badge = page[page.index('class="stage-badge"'):]
+    badge = badge[:badge.index("</div>")]
+    for element in ('id="badge-engine"', 'id="badge-where"', 'id="live-status"'):
+        assert element in badge, f"{element} is not inside the stage badge"
+
+    player = (REPO / "static/js/player.js").read_text()
+    # Exactly one thing may write the status, and it is `_status`, which sets the place at
+    # the same time. Any second writer is how the two got out of step in the first place.
+    writes = player.count("$('live-status').textContent")
+    assert writes == 1, (
+        f"{writes} places write the status directly; only _status may, so that the place "
+        f"beside it is always set with it")
+    definition = player[player.index("_status(text, where = null)"):]
+    assert "$('live-status').textContent" in definition[:400], (
+        "the one direct write is not the one inside _status")
+    # And it is used, rather than being a wrapper nothing calls.
+    assert player.count("this._status(") >= 8
