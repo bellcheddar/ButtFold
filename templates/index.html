@@ -47,6 +47,16 @@
       </div>
     </div>
     <div class="pill-row">
+      <span class="label">Style</span>
+      <div class="segmented" id="style-mode" role="group" aria-label="Musical style">
+        <button type="button" data-style="fantasy" aria-pressed="true">Fantasy</button>
+        <button type="button" data-style="jazz" aria-pressed="false">Jazz</button>
+        <button type="button" data-style="pop" aria-pressed="false">Pop</button>
+        <button type="button" data-style="rock" aria-pressed="false">Rock</button>
+        <button type="button" data-style="surf" aria-pressed="false">Surf</button>
+      </div>
+    </div>
+    <div class="pill-row">
       <span class="label">Engine</span>
       <div class="segmented" id="engine-mode" role="group" aria-label="Frame source">
         <button type="button" data-source="baked" aria-pressed="true">Gallery</button>
@@ -94,7 +104,12 @@
     <button type="button" class="play" id="play">Play</button>
     <input type="range" class="seek" id="seek" min="0" max="0" value="0" aria-label="Seek">
     <span class="frame-count" id="frame-count">&mdash;</span>
+    <label class="volume-label" for="volume">Volume</label>
+    <input type="range" class="volume" id="volume" min="0" max="100" value="70"
+           aria-label="Volume">
   </div>
+  <p class="score-summary" id="score-summary"></p>
+  <p class="audio-note" id="audio-note"></p>
 
   <div class="section-head">
     <h2>The gallery</h2>

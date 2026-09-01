@@ -12,6 +12,8 @@
 
 import { Stage, COLOUR_MODES } from './stage.js';
 import { runLengthDecode } from './PSEA.js';
+import { score } from './Sonifier.js';
+import { FoldAudio } from './audio.js';
 
 const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
 
@@ -48,15 +50,32 @@ class Player {
     this.framesPerSecond = 24;
     this.accumulator = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.audio = new FoldAudio();
+    this.styleId = 'fantasy';
+    this.styles = {};
+    this.scored = null;
   }
 
   async boot() {
-    const THREE = await import(THREE_URL);
+    const [THREE] = await Promise.all([import(THREE_URL), this._loadStyles()]);
     this.stage = new Stage($('stage'), THREE);
     this._wireControls();
     const first = document.querySelector('.card');
     await this.load(first?.dataset.foldId ?? 'trp_cage');
     requestAnimationFrame(t => this._loop(t));
+  }
+
+  async _loadStyles() {
+    // Every style the page offers, loaded up front: they are a few kilobytes each and
+    // switching style must be instant and beat-quantised, never a fetch and a stall.
+    const ids = [...document.querySelectorAll('#style-mode button')]
+      .map(b => b.dataset.style);
+    const loaded = await Promise.all(ids.map(async id => {
+      const response = await fetch(`/static/styles/${id}.json`);
+      if (!response.ok) throw new Error(`style ${id}: HTTP ${response.status}`);
+      return [id, await response.json()];
+    }));
+    this.styles = Object.fromEntries(loaded);
   }
 
   async load(foldId) {
@@ -88,7 +107,39 @@ class Player {
       card.setAttribute('aria-pressed', String(card.dataset.foldId === foldId));
     });
     $('seek').max = String(this.frames.length - 1);
+    this._rescore();
     this._show(0);
+  }
+
+  /* Build the score for the current fold and style, and hand it to the audio engine.
+   *
+   * Done on load and on every style change, not on every frame: the whole trajectory is
+   * scored at once because the sonifier's pacing needs to know how many readouts there
+   * are before it can decide how many of them share a moment. */
+  _rescore() {
+    if (!this.fold) return;
+    const style = this.styles[this.styleId];
+    if (!style) return;
+    this.scored = score({ ...this.fold, frames: this.fold.frames.map((f, i) => ({
+      ...f, ssExpanded: this.frames[i].ss })) }, style);
+    this.audio.loadScore(this.scored.moments, style,
+                         (frameIndex, residue) => this._residuePosition(frameIndex, residue));
+    const seconds = this.audio.durationSeconds ?? 0;
+    const notes = this.scored.moments.reduce((sum, m) => sum + m.notes.length, 0);
+    const dropped = this.scored.moments.reduce((sum, m) => sum + m.droppedContacts, 0);
+    // Reported, not hidden: a trajectory that loses most of its events to the per-bar cap
+    // should say so rather than just sounding thin. PLAN section 5.3's honesty rule applied
+    // to the music.
+    $('score-summary').textContent =
+      `${notes.toLocaleString()} notes over ${seconds.toFixed(0)} s`
+      + (dropped ? `, ${dropped.toLocaleString()} contacts past the per-bar cap` : '');
+  }
+
+  _residuePosition(frameIndex, residue) {
+    const frame = this.frames[frameIndex];
+    if (!frame || residue < 0 || residue * 3 + 2 >= frame.points.length) return null;
+    return [frame.points[3 * residue], frame.points[3 * residue + 1],
+            frame.points[3 * residue + 2]];
   }
 
   _updateBadge() {
@@ -148,7 +199,22 @@ class Player {
     this.lastTick = now;
     this.stage.spin(delta);
 
-    if (this.playing && this.frames.length) {
+    if (this.playing && this.frames.length && this.audio.playing) {
+      // **The audio clock drives the animation, not the other way round.** A requestAnimationFrame
+      // loop and an AudioContext are two independent clocks: rAF is throttled when the tab
+      // is not visible and drifts against the sample clock even when it is not, so an
+      // animation that advanced itself would slide out of sync with its own soundtrack over
+      // the course of a forty-five second piece. Asking the audio where it is costs nothing
+      // and cannot drift.
+      const frame = this.audio.frameAt(this.audio.positionSeconds);
+      if (frame !== this.index) this._show(frame);
+      $('seek').value = String(this.index);
+      if (this.audio.positionSeconds >= (this.audio.durationSeconds ?? 0)) {
+        this.playing = false;
+        $('play').textContent = 'Play';
+      }
+    } else if (this.playing && this.frames.length) {
+      // Silent playback, for a browser with no Web Audio or before the first gesture.
       this.accumulator += delta;
       const step = 1 / this.framesPerSecond;
       while (this.accumulator >= step) {
@@ -168,34 +234,77 @@ class Player {
     requestAnimationFrame(t => this._loop(t));
   }
 
-  toggle() {
+  /* Called straight from the click handler. A browser refuses an AudioContext before a
+   * user gesture, and "inside the gesture" means synchronously in the handler: awaiting
+   * something first and then constructing the context is too late in Safari. */
+  async toggle() {
     if (!this.frames.length) return;
-    // Restart from the beginning if it has run to the end, so Play always plays something.
-    if (!this.playing && this.index >= this.frames.length - 1) {
-      this.contactsSoFar = 0;
-      this._show(0);
+    if (this.playing) {
+      this.playing = false;
+      this.audio.pause();
+      $('play').textContent = 'Play';
+      return;
     }
-    this.playing = !this.playing;
-    $('play').textContent = this.playing ? 'Pause' : 'Play';
-    // Phase 2 hooks the AudioContext resume here: browsers refuse an AudioContext before a
-    // user gesture, and this button is that gesture.
+    // Restart from the beginning if it has run to the end, so Play always plays something.
+    const restart = this.index >= this.frames.length - 1;
+    if (restart) { this.contactsSoFar = 0; this._show(0); }
+
+    this.playing = true;
+    $('play').textContent = 'Pause';
+    try {
+      if (this.audio.available && await this.audio.start()) {
+        this.audio.play(restart ? 0 : this._secondsForFrame(this.index));
+      }
+    } catch (err) {
+      // Silent playback rather than no playback: the animation is the point and the sound
+      // is the reward, so a browser that refuses an AudioContext still gets the fold.
+      $('audio-note').textContent = `Sound unavailable: ${err.message}`;
+      console.warn(err);
+    }
+  }
+
+  _secondsForFrame(index) {
+    const entry = this.audio.timeline.find(t => t.moment.frameIndex >= index);
+    return entry ? entry.startSeconds : 0;
   }
 
   _wireControls() {
     $('play').addEventListener('click', () => this.toggle());
+    $('volume').addEventListener('input', (e) => {
+      this.audio.setVolume(Number(e.target.value) / 100);
+    });
+    document.querySelectorAll('#style-mode button').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('#style-mode button').forEach(b =>
+          b.setAttribute('aria-pressed', String(b === button)));
+        this.styleId = button.dataset.style;
+        const seconds = this.audio.positionSeconds;
+        const wasPlaying = this.playing && this.audio.playing;
+        this.audio.pause();
+        this._rescore();
+        // Style switching keeps its place rather than restarting: a fold that had reached
+        // its cadence must not be sent back to the opening chord, which is the one thing a
+        // listener hears as a restart even if nothing else changed.
+        if (wasPlaying) this.audio.play(Math.min(seconds, this.audio.durationSeconds ?? 0));
+        else this.audio.offsetSeconds = Math.min(seconds, this.audio.durationSeconds ?? 0);
+      });
+    });
     $('seek').addEventListener('input', (e) => {
       this.playing = false;
+      this.audio.pause();
       $('play').textContent = 'Play';
       // Recompute the running contact total for the frame seeked to, rather than leaving
       // it wherever playback happened to stop.
       const target = Number(e.target.value);
       this.contactsSoFar = this.frames.slice(0, target + 1)
         .reduce((sum, f) => sum + f.newContacts.length, 0);
+      this.audio.seek(this._secondsForFrame(target));
       this._show(target);
     });
     document.querySelectorAll('.card').forEach(card => {
       card.addEventListener('click', () => {
         this.playing = false;
+        this.audio.stop();
         $('play').textContent = 'Play';
         this.contactsSoFar = 0;
         this.load(card.dataset.foldId);

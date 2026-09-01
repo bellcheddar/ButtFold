@@ -147,6 +147,61 @@ file, component by component.
 | coordinate components compared | 6,060 |
 | differences | **0 (bitwise identical)** |
 
+## Phase 2: note-for-note parity with the shipped app
+
+2026-09-01, M1 Max. `tests/fixtures/score/*.json` was produced by PhoneFold's own
+`FoldAudio.Sonifier`, compiled from PhoneFoldKit at commit
+`6f44c8a1ac7684da93668a580b29cbe9a67cfc5e` and run over ButtFold's committed baked gallery
+(`tools/swift_score_dump/run.sh`). `tests/sonifier_parity.test.mjs` then runs `Sonifier.js`
+over the same artefact and compares every note.
+
+| | |
+|---|---|
+| reference scores | 10 (2 folds x 5 styles) |
+| notes compared | **15,536** |
+| fields compared per note | voice, pitch, velocity, residue, partner, beat offset, duration |
+| differences | **0** |
+
+Per-moment fields (degree, cadence, modulation, dropped and established contact counts) are
+compared exactly; the continuous ones (tempo, compaction, cutoff, detune, reverb) to 1e-4
+relative, because the Swift computes them in `Float` and JS in double.
+
+| fold | style | moments | readouts per moment | beats per moment | duration | notes | dropped | established |
+|---|---|---|---|---|---|---|---|---|
+| trp_cage | fantasy | 75 | 2 | 0.99 | 36 s | **1,149** | 37 | 44 |
+| trp_cage | jazz | 75 | 2 | 1.20 | 37 s | **1,148** | 37 | 44 |
+| trp_cage | pop | 75 | 2 | 1.09 | 40 s | **1,156** | 37 | 44 |
+| trp_cage | rock | 75 | 2 | 1.32 | 38 s | **1,129** | 37 | 44 |
+| trp_cage | surf | 150 | 1 | 0.69 | 38 s | **1,563** | 9 | 19 |
+| ubiquitin | fantasy | 75 | 2 | 0.99 | 38 s | **1,629** | 1,697 | 186 |
+| ubiquitin | jazz | 75 | 2 | 1.20 | 38 s | **1,635** | 1,697 | 186 |
+| ubiquitin | pop | 75 | 2 | 1.09 | 41 s | **1,647** | 1,697 | 186 |
+| ubiquitin | rock | 75 | 2 | 1.32 | 39 s | **1,603** | 1,697 | 186 |
+| ubiquitin | surf | 150 | 1 | 0.69 | 40 s | **2,877** | 962 | 107 |
+
+**Contacts past the per-bar cap are reported, not hidden.** Ubiquitin loses 1,697 of its
+3,050 contact formations to the sixteen-per-moment limit at four of the five styles. That is
+the shipped app's behaviour, not a ButtFold defect - parity means inheriting it - and the
+page states it in a line under the transport rather than just sounding thin. Surf groups one
+readout per moment rather than two, so it keeps far more of them (962 dropped, and 2,877
+notes against fantasy's 1,629).
+
+### The sound actually reaches an audio device
+
+The parity test proves the score is right and says nothing about whether it reaches an
+`AudioContext`. A sonifier with perfect note-for-note parity that is wired to nothing
+produces silence and passes every unit test, which is precisely the failure mode PLAN
+section 10 exists for. `tests/audio_smoke.mjs` therefore drives the real page in headless
+Chrome, clicks Play as a genuine user gesture, and measures:
+
+| check | measured |
+|---|---|
+| AudioContext state after the click | **running** |
+| audio clock advance in 2.5 s of wall time | 2.45 s |
+| animation frame reached | 9, driven by the audio clock |
+| moments scheduled by the lookahead | 5 |
+| style switch keeps its place | 2.45 s -> 3.66 s, no restart |
+
 ## P0-4: baked payload size
 
 2026-09-01, M1 Max. `tools/bake_gallery.py`, six Gō folds, 150 frames each, 3D coordinates
@@ -155,13 +210,16 @@ structure, Rg and Q.
 
 | | |
 |---|---|
-| `static/baked/gallery.json` | **686 kB** (0.67 MB) |
+| `static/baked/gallery.json` | **842 kB** (0.82 MB) |
 | budget (PLAN section 3) | 4 MB |
-| per fold | 114 kB average |
+| per fold | 140 kB average |
 | Watch reference (2D, 6 folds, 90 frames) | 232 kB |
 
 Comfortably inside the budget, so the 4 MB figure stays and there is room for the 2 to 4
-generative entries and for more frames if the animation wants them. Served gzipped by nginx
+generative entries and for more frames if the animation wants them. The figure grew from
+686 kB to the number above when Phase 2 added per-residue confidence to every frame, which
+the sonifier needs for note velocity; that is 156 kB for the thing that makes a fold sound
+like a fold rather than like a sequence. Served gzipped by nginx
 this will be smaller again; the number above is the file on disk, which is the honest one to
 budget against.
 

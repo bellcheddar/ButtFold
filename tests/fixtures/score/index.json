@@ -1,0 +1,54 @@
+{
+  "cases" : [
+    {
+      "file" : "trp_cage-fantasy.json",
+      "fold" : "trp_cage",
+      "style" : "fantasy"
+    },
+    {
+      "file" : "trp_cage-jazz.json",
+      "fold" : "trp_cage",
+      "style" : "jazz"
+    },
+    {
+      "file" : "trp_cage-pop.json",
+      "fold" : "trp_cage",
+      "style" : "pop"
+    },
+    {
+      "file" : "trp_cage-rock.json",
+      "fold" : "trp_cage",
+      "style" : "rock"
+    },
+    {
+      "file" : "trp_cage-surf.json",
+      "fold" : "trp_cage",
+      "style" : "surf"
+    },
+    {
+      "file" : "ubiquitin-fantasy.json",
+      "fold" : "ubiquitin",
+      "style" : "fantasy"
+    },
+    {
+      "file" : "ubiquitin-jazz.json",
+      "fold" : "ubiquitin",
+      "style" : "jazz"
+    },
+    {
+      "file" : "ubiquitin-pop.json",
+      "fold" : "ubiquitin",
+      "style" : "pop"
+    },
+    {
+      "file" : "ubiquitin-rock.json",
+      "fold" : "ubiquitin",
+      "style" : "rock"
+    },
+    {
+      "file" : "ubiquitin-surf.json",
+      "fold" : "ubiquitin",
+      "style" : "surf"
+    }
+  ]
+}

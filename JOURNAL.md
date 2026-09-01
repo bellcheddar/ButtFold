@@ -77,3 +77,49 @@ the two frame sources the player will accept are provably the same program.
 Phase 0 is complete except for two rows that need Marc: Safari's protein G number (this Mac
 was at the login window, which is why Safari suspended everything) and mobile Safari on his
 iPhone. Neither blocks Phase 1, so Phase 1 starts.
+
+### Phase 1 and Phase 2
+
+Phase 1 shipped the baked gallery: six Gō folds, every assertion green, 150 frames each,
+Flask serving them with the Cache-Control gotcha handled in code, and a three.js ribbon
+coloured helix magenta and sheet cyan. The two bugs it turned up are both worth keeping:
+
+`emcc -s MODULARIZE=1` emits a UMD factory with no ES `export default`, so the browser
+import threw while the node test passed by loading the same file as CommonJS. One artefact,
+two loaders, one of them lying, and only a real browser found it.
+
+Then a `CatmullRomCurve3` built from coincident control points has zero length, so
+`TubeGeometry`'s Frenet frames come out NaN, the bounding sphere computed from them is NaN,
+and three.js frustum-culls the mesh for the rest of its life. The page rendered perfectly:
+header, title, amber disclosure line, live readouts showing Rg 7.1 and helix 35%, and an
+entirely empty stage. Found by the screenshot gate asserting non-uniformity, which is the
+whole reason that rule exists.
+
+Phase 2 is the one that mattered. `tools/swift_score_dump/` is a throwaway SwiftPM package
+that depends on PhoneFoldKit **by path** and runs the shipped `FoldAudio.Sonifier` over
+ButtFold's own committed gallery. Its output is the fixture. `Sonifier.js` then reproduces
+it note for note: 15,536 notes, two folds, all five styles, zero differences in voice,
+pitch, velocity, residue, partner, beat offset or duration. A JS sonifier tested against a
+JS fixture would have proved only that it had not changed.
+
+Getting there needed one thing that is easy to dismiss as pedantry and is not: **Float32 is
+emulated with `Math.fround` wherever the Swift uses `Float`.** Mean confidence accumulates
+over 76 residues in single precision on the phone, and computing the same mean in a double
+reaches the output through `velocity` (30 + 90q, truncated) and through the plateau
+detector's tolerance, where a few ulps decide whether the piece cadences on this bar or the
+next. The same applies to the radius of gyration: the dumper was changed to hand the
+Sonifier the artefact's *recorded* Rg rather than recomputing it from rescaled coordinates,
+because the round trip lands a few ulps away and `compaction` is sensitive enough for that
+to reach the tempo.
+
+Two honest numbers came out of it. Ubiquitin loses 1,697 of its 3,050 contact formations to
+the sixteen-per-moment cap, which is the shipped app's behaviour and therefore what parity
+means; the page states it in a line under the transport rather than just sounding thin. And
+`tests/audio_smoke.mjs` exists because the parity test proves the score is right and says
+nothing about whether it reaches an AudioContext - a sonifier wired to nothing is silent and
+passes every unit test. It drives the real page, clicks Play as a genuine gesture, and
+measures the context running, the clock advancing 2.45 s in 2.5 s, the animation following
+that clock rather than its own, and a style switch keeping its place instead of restarting.
+
+Phase 2's machine gate is met. Its human gate - does it sound right - is Marc's and is left
+open.

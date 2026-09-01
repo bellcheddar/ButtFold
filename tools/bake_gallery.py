@@ -95,6 +95,41 @@ def kabsch_rmsd(P: np.ndarray, Q: np.ndarray) -> float:
     return float(np.sqrt(((p @ r - q) ** 2).sum(1).mean()))
 
 
+def per_residue_native_fraction(ca: np.ndarray, pairs: np.ndarray, sigma: np.ndarray,
+                                tolerance: float = 1.2) -> np.ndarray:
+    """The confidence the sonifier reads, per residue, on a 0 to 100 scale.
+
+    The Gō model has no pLDDT. What it has, and what PhoneFold's structure-based path uses,
+    is the fraction of a residue's OWN native contacts that have formed. That is the thing
+    worth watching: the hydrophobic core locks in first and completely while the termini are
+    still loose, and one number over the whole chain hides it.
+
+    A residue with no native contacts of its own takes the chain's overall value, because
+    0/0 is not 0. A flexible terminus or a residue on a convex surface can have no
+    long-range partners at all, and scoring those zero would paint them as permanently
+    unfolded even in the native structure, which is both wrong and exactly the sort of thing
+    a viewer would read as meaningful.
+
+    Ported from PhoneFold's `FoldEngine/LiveTrajectory.swift`, `perResidueNativeFraction`.
+    """
+    n = len(ca)
+    formed = np.zeros(n)
+    total = np.zeros(n)
+    if len(pairs):
+        d = np.linalg.norm(ca[pairs[:, 0]] - ca[pairs[:, 1]], axis=1)
+        close = d < tolerance * sigma
+        np.add.at(total, pairs[:, 0], 1)
+        np.add.at(total, pairs[:, 1], 1)
+        np.add.at(formed, pairs[close, 0], 1)
+        np.add.at(formed, pairs[close, 1], 1)
+        overall = float(close.mean())
+    else:
+        overall = 0.0
+    with np.errstate(invalid="ignore", divide="ignore"):
+        fraction = np.where(total > 0, formed / np.maximum(total, 1), overall)
+    return fraction * 100.0
+
+
 def native_pairs(ca: np.ndarray) -> np.ndarray:
     d = np.linalg.norm(ca[:, None, :] - ca[None, :, :], axis=-1)
     sep = np.abs(np.arange(len(ca))[:, None] - np.arange(len(ca))[None, :])
@@ -203,10 +238,15 @@ def bake(protein_id: str) -> dict:
         ss = smoother.smooth(raw_ss)
         d = np.linalg.norm(frames[index][pairs[:, 0]] - frames[index][pairs[:, 1]], axis=1)
         q = float((d < 1.2 * sigma).mean()) if len(pairs) else 0.0
+        # Per-residue confidence, rounded to whole percent. That is a tenth of the
+        # sonifier's velocity resolution (velocity = 30 + 90q, so one percent is 0.9 of a
+        # MIDI velocity step), so nothing musical is lost and the payload stays small.
+        confidence = per_residue_native_fraction(frames[index], pairs, sigma)
         baked_frames.append({
             "points": np.round(frame * scale).astype(int).reshape(-1).tolist(),
             "newContacts": [[int(i), int(j)] for i, j in contacts],
             "ss": psea.run_length_encode(ss),
+            "conf": [int(round(c)) for c in confidence],
             "rg": int(round(radius_of_gyration(frames[index]) * 10)),
             "q": int(round(q * 1000)),
         })

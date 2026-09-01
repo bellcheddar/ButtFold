@@ -1,6 +1,6 @@
 # ButtFold: state
 
-Current phase: **Phase 2, sound** (Phase 1 complete; two Phase 0 rows await Marc)
+Current phase: **Phase 3, WASM live fold** (Phase 2's machine gate is met; its HUMAN gate awaits Marc, as do two Phase 0 rows)
 
 The task list below is the execution contract from PLAN.md section 11. Status is one of
 `todo` / `doing` / `blocked` / `done`. Phases advance on machine-verifiable gates only;
@@ -79,7 +79,46 @@ ribbon forever behind a page that otherwise looked perfect.
 
 ## Phase 2: sound
 
-**doing.** Gate: note-for-note parity. **HUMAN** gate at the end.
+**machine gate met. HUMAN gate open.**
+
+| # | Task | Status |
+|---|---|---|
+| 2.1 | Per-residue confidence added to the baked artefact (the sonifier's velocity input) | done |
+| 2.2 | `tools/swift_score_dump/`: PhoneFold's own Sonifier over ButtFold's gallery | done |
+| 2.3 | `MusicalScale.js`: modes, scale arithmetic, FNV-1a seed, SplitMix64, pitch layer | done |
+| 2.4 | `Sonifier.js`: the whole mapping, Float32 emulated where the Swift uses `Float` | done |
+| 2.5 | `audio.js`: Web Audio engine, all five style profiles unchanged, HRTF panning | done |
+| 2.6 | Style pill, volume, score summary line, audio clock driving the animation | done |
+| 2.7 | `tests/sonifier_parity.test.mjs`, `tests/audio_smoke.mjs`, both in the gate | done |
+
+**Exit gate (machine): all met.**
+
+- `Sonifier.js` matches the Swift fixture note for note: **15,536 notes across 2 folds and
+  all 5 styles, zero differences** in voice, pitch, velocity, residue, partner, beat offset
+  and duration;
+- the score hash is stable: two runs of the same fold produce byte-identical moments;
+- all five styles produce a non-empty score, and the reference dump covers every one;
+- and, beyond the plan's wording, the sound is shown to reach a real `AudioContext` from a
+  real click, because a correct score wired to nothing is silent and passes every unit test.
+
+**HUMAN gate, open:** Marc listens to ubiquitin in two styles against the phone app. The
+agent does not mark this met. Run the app (`python3 app.py`, then
+`http://127.0.0.1:8007/`), pick Ubiquitin, press Play, and switch between Fantasy and Jazz.
+
+## Phase 3: WASM live fold
+
+**doing.** Gate: a browser folds trp-cage.
+
+Already done in Phase 0, ahead of schedule:
+
+- `native/wasm_api.c` and the streaming module build (`tools/build_wasm.sh module`);
+- **P0-3c: the module reproduces the CLI bitwise**, all 101 frames and 6,060 coordinate
+  components, which is one of this phase's exit criteria met early;
+- forces agree with the native build to 2.9e-15 relative, against a 1e-9 bar.
+
+Still to do: the worker, the live path through the same player, feature detection, and the
+handling that P0-2 forced into scope - **a browser suspends a fold it cannot see**, so a
+visitor who switches tabs must not silently stop folding.
 
 ## Phase 3: WASM live fold
 

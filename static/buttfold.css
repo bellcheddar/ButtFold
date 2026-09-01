@@ -225,6 +225,19 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   font-family: var(--bf-mono); font-size: 13px; color: var(--bf-text-2);
   font-variant-numeric: tabular-nums;
 }
+.volume-label {
+  font-size: 11px; color: var(--bf-text-2); text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.volume { flex: 0 1 110px; accent-color: var(--bf-action); }
+
+/* What the score cost, stated rather than hidden. A trajectory that loses most of its
+   contact events to the per-bar cap should say so instead of just sounding thin. */
+.score-summary {
+  margin: 0; font: 500 12px/1.5 var(--bf-mono); color: var(--bf-text-2);
+}
+.audio-note { margin: 4px 0 0; font-size: 13px; color: var(--bf-magenta); }
+.audio-note:empty { display: none; }
 
 /* ---------------------------------------------------------------- gallery ------------- */
 
