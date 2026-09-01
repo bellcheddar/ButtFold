@@ -39,9 +39,24 @@ DISCLOSURE_PARAGRAPH = (
     "ButtFold shows a simple physics model relaxing a chain into a structure it already "
     "knows, and what a generative network's inventions look and sound like. It is not a "
     "prediction of an unknown structure, it is not a physical folding pathway, and no "
-    "protein folds this way. The music is a faithful map of the simulation's events, and "
-    "nothing more."
+    "protein folds this way. The 150 poses in each trajectory are 50,000 integration steps "
+    "apart, far enough that an atom can move further than the protein is wide between two "
+    "of them; what you see in between is drawn to join them up, not computed, so the "
+    "motion is smooth where the model is not. The music is a faithful map of the "
+    "simulation's events, and nothing more."
 )
+
+
+def test_the_interpolation_is_disclosed_rather_than_left_implied():
+    """Interpolation makes the animation smoother than the thing it is animating.
+
+    A visitor watching a fluid, continuous fold would reasonably assume they were watching
+    the model's own output at every instant, and between frames they are not: an alpha
+    carbon moves up to 30 Angstroms between two of them and the pose in the middle is drawn
+    rather than computed. PLAN section 7's rule is that the page says what it is doing where
+    it is doing it, so the claim is pinned here the way the rest of them are.
+    """
+    assert "drawn to join them up, not computed" in DISCLOSURE_PARAGRAPH
 
 
 def visible_text(html: str) -> str:

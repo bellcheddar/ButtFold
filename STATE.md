@@ -284,6 +284,21 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       build - so `tests/audio_smoke.mjs` now probes for it and skips only the clock
       assertions, naming the cause. The score, the scheduling and the transport are still
       checked. **The sonifier is unverified on this machine until that clears.**
+- [x] **The animation is interpolated**, which `FRAME_CAP = 150  # interpolated in the
+      browser` had promised since it was written and nothing had done. 150 frames across
+      forty seconds of music is four frames a second against sixty redraws, so each pose was
+      held fifteen times and then replaced. Measured over 59 consecutive redraws: 3 of them
+      moved anything and the largest single jump was 14.9 A; now all 59 move, median 0.87 A,
+      largest 3.97 A. Three measurements shaped it. A plain lerp is not merely inexact but
+      broken - an alpha carbon moves up to 30 A between adjacent frames, so the midpoint's
+      mean CA-CA bond came out at 86 to 94% of true with the worst 97% short. Superposing
+      each frame onto the one before, which is what a viewer does to stop a trajectory
+      tumbling, took the largest step only from 30.1 to 26.6 A, so the whole Kabsch
+      apparatus was measured and dropped: the motion is conformational, not rotational. What
+      works is a bond projection after the lerp, and 16 passes leaves the worst bond 0.7%
+      off. The disclosure paragraph now says the in-between is drawn rather than computed,
+      and `test_honesty` pins that sentence - the two test files that each kept their own
+      copy of the approved wording now share one.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

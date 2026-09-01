@@ -195,6 +195,43 @@ const modes = await evaluate(`(async () => {
   return out;
 })()`);
 
+/* Does the structure move BETWEEN frames, or does it jump from one to the next?
+ *
+ * A trajectory is 150 frames and the music is about forty seconds, so the frame index
+ * changes four times a second while the page redraws sixty times: without interpolation the
+ * same pose is drawn fifteen times and then replaced, which is what jumping is. This samples
+ * the rendered geometry itself - the vertex buffer the cartoon sweeps - and asks how many
+ * DISTINCT poses appear while the frame index holds still.
+ *
+ * Sampled from the buffer rather than from the frame index, because the frame index would
+ * be the same in both cases: the question is what was drawn, not what was asked for. */
+const morph = await evaluate(`(() => {
+  const p = window.buttfoldPlayer;
+  // A hash of the vertex buffer the cartoon actually swept, sampled sparsely: what was
+  // DRAWN, not what was asked for. The frame index is identical with and without
+  // interpolation, so watching it would prove nothing.
+  const signature = () => {
+    const a = p.stage.buffers.position;
+    let h = 2166136261;
+    for (let i = 0; i < a.length; i += 97) {
+      h ^= Math.round(a[i] * 1000); h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
+  const poses = new Set();
+  const frames = new Set();
+  // Thirteen samples inside ONE frame's worth of playback, which is roughly what the loop
+  // takes at 60 Hz between two frames of a 150-frame trajectory over forty seconds.
+  for (let i = 0; i <= 12; i++) {
+    p._showAt(40 + i / 13);
+    poses.add(signature());
+    frames.add(p.index);
+  }
+  return { poses: poses.size, frames: frames.size };
+})()`);
+console.log(`morph         ${morph.poses} distinct poses drawn across `
+            + `${morph.frames} trajectory frame(s)`);
+
 // The transport must be ON SCREEN without scrolling, at the sizes people actually have.
 // Marc's instruction, 2026-09-01: the structure should share more of the screen and the
 // Play bar should be visible at the bottom on a standard screen. That is arithmetic over
@@ -319,6 +356,17 @@ if (pageLogs.length) pageLogs.forEach(l => console.log(`  [page] ${l}`));
 
 const failures = [];
 if (uniformity.error) failures.push(uniformity.error);
+// 13 samples inside one frame's worth of playback should be 13 different poses. Before
+// interpolation they were one pose drawn thirteen times, and the frame index - which is what
+// a naive test would have watched - was identical in both cases.
+if (!(morph.poses >= 12)) {
+  failures.push(`only ${morph.poses} distinct poses across 13 samples within one frame: the `
+                + 'structure is jumping from frame to frame rather than moving between them');
+}
+if (morph.frames !== 1) {
+  failures.push(`the samples crossed ${morph.frames} trajectory frames, so this measured `
+                + 'the frames changing rather than the poses between them');
+}
 // A blank stage is one colour and scores ~0. A drawn ribbon on a dark ground covers a few
 // per cent of the canvas, so 1% is comfortably above blank and comfortably below a real
 // render.

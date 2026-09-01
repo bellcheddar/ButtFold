@@ -194,6 +194,33 @@ export class FoldAudio {
     return this.timeline[best].moment.frameIndex;
   }
 
+  /**
+   * Where playback is between two trajectory frames, as a fractional frame index.
+   *
+   * The same search as `frameAt`, carried on into the gap: how far through the interval
+   * between this moment and the next one the clock has got, applied to the frames those two
+   * moments point at. Moments are musical events rather than a fixed grid, so the mapping is
+   * uneven and this reads it rather than assuming a rate - and it still reaches the next
+   * moment's frame exactly when that moment sounds, so the picture and the note land
+   * together as they did before.
+   */
+  frameAtFractional(seconds) {
+    if (!this.timeline.length) return 0;
+    let low = 0, high = this.timeline.length - 1, best = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (this.timeline[mid].startSeconds <= seconds) { best = mid; low = mid + 1; }
+      else high = mid - 1;
+    }
+    const here = this.timeline[best];
+    const next = this.timeline[best + 1];
+    if (!next) return here.moment.frameIndex;
+    const span = next.startSeconds - here.startSeconds;
+    if (!(span > 0)) return here.moment.frameIndex;
+    const t = Math.min(Math.max((seconds - here.startSeconds) / span, 0), 1);
+    return here.moment.frameIndex + t * (next.moment.frameIndex - here.moment.frameIndex);
+  }
+
   play(fromSeconds = null) {
     if (!this.context || !this.timeline.length) return;
     this.offsetSeconds = fromSeconds ?? this.offsetSeconds;

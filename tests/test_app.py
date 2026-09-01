@@ -22,13 +22,12 @@ sys.path.insert(0, str(REPO))
 from app import app as flask_app  # noqa: E402
 
 
-DISCLOSURE_PARAGRAPH = (
-    "ButtFold shows a simple physics model relaxing a chain into a structure it already "
-    "knows, and what a generative network's inventions look and sound like. It is not a "
-    "prediction of an unknown structure, it is not a physical folding pathway, and no "
-    "protein folds this way. The music is a faithful map of the simulation's events, and "
-    "nothing more."
-)
+# The one approved wording, from the file whose whole subject is the honesty strings.
+# There used to be a second copy of it here, which is how the two came to disagree the
+# first time the paragraph changed: this file asserted the served page matched a version of
+# the sentence that no longer existed anywhere else. A claim the app makes is a fact about
+# the app, so it lives in one place.
+from tests.test_honesty import DISCLOSURE_PARAGRAPH  # noqa: E402
 
 
 def visible_text(html: str) -> str:

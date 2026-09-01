@@ -130,12 +130,19 @@ matter here are the ones where every unit test passes and the page does nothing.
 | Gate | What it proves |
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
-| pytest, 60 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
-| `node --test`, 39 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
+| pytest, 61 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
+| `node --test`, 44 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |
 | sound | The score reaches a **running** `AudioContext` from a real click, and the animation follows the audio clock |
 | live fold, and the queue | A browser folds trp-cage to Q >= 0.95, and the droplet returns a fold and then serves it from cache. Both must be seen mid-fold: at least three distinct frame counts while the status still reads "folding", with the charts carrying a point per frame |
+
+The animation between frames is a morph and the page says so. The 150 poses in a trajectory
+are 50,000 integration steps apart - far enough that an alpha carbon moves up to 30 Å between
+two of them - so a straight interpolation tears the chain (the worst CA-CA bond came out 97%
+short) and is followed by a bond projection that puts it back. Nothing drawn between two
+frames is a state the model passed through, which is in the disclosure paragraph rather than
+left implied.
 
 Two assertions run at bake time and are repeated against the committed file, because they are the
 ones that catch a trajectory which is not doing the thing the animation is about: the chain must

@@ -17,6 +17,8 @@ import { runLengthDecode } from './PSEA.js';
 import { LiveScale, buildFrame, centre, maxAbs, newTrajectoryState, roundHalfToEven,
          keptFrameIndices, QUANTISED_RANGE } from './frames.js';
 import { nativeContacts, perResidueNativeFraction } from './native_contacts.js';
+// The in-between poses, which the model never computed and the page says so.
+import { morphFrames, newMorphScratch } from './morph.js';
 import { score, compaction } from './Sonifier.js';
 import { FoldAudio } from './audio.js';
 
@@ -66,7 +68,10 @@ class Player {
     this.residueCount = 0;
     this.lastTick = 0;
     this.framesPerSecond = 24;
-    this.accumulator = 0;
+    // Where silent playback has got to, as a fractional frame. Reset wherever the trajectory
+    // frame is set from outside - a seek, a restart, a new fold - or it would resume from
+    // where the last silent run stopped.
+    this.silentPosition = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.audio = new FoldAudio();
     this.styleId = 'fantasy';
@@ -147,6 +152,8 @@ class Player {
       q: frame.q / 1000,
     }));
     this.index = 0;
+    this.silentPosition = 0;
+    this._readoutsDrawn = false;
     this.contactsSoFar = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.stage.setResidueCount(fold.residueCount, fold.angstromsPerUnit);
@@ -358,6 +365,7 @@ class Player {
     this.streamedFrames = [];
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.contactsSoFar = 0;
+    this._readoutsDrawn = false;
   }
 
   async _pullQueuedFrames(jobId) {
@@ -429,6 +437,9 @@ class Player {
     this.frames = [];
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.contactsSoFar = 0;
+    // The first streamed frame is index 0, which is where the previous fold left `index`,
+    // so without this the readouts would sit on the old fold's numbers until frame 2.
+    this._readoutsDrawn = false;
     this._status('starting the model', 'live');
 
     // A fold the visitor cannot see is a fold the browser may stop. P0-2 measured Safari
@@ -585,16 +596,47 @@ class Player {
     $('live-status').textContent = text ?? '';
   }
 
+  /** Show a whole frame. Everything that navigates - seeking, loading, stepping - lands
+   *  here, and only playback asks for anything in between. */
   _show(index) {
+    this._showAt(Math.round(index));
+  }
+
+  /**
+   * Draw the trajectory at a fractional frame position.
+   *
+   * At a whole number this is the frame itself and nothing is invented. In between it is a
+   * morph: see `morph.js` for why a lerp alone tears the chain and what is done about it.
+   * The READOUTS do not move with it - they are per-frame measurements of the model, not
+   * of the picture, so they change when the frame does and not sixty times a second. Which
+   * also keeps seven DOM writes out of the render loop.
+   */
+  _showAt(position) {
     if (!this.frames.length) return;
-    this.index = Math.max(0, Math.min(this.frames.length - 1, index));
-    const frame = this.frames[this.index];
-    this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
-    this.rendered = this.index;
-    this._readouts(frame);
-    $('seek').value = String(this.index);
-    $('frame-count').textContent =
-      `${String(this.index + 1).padStart(3, ' ')} / ${this.frames.length}`;
+    const last = this.frames.length - 1;
+    const clamped = Math.max(0, Math.min(last, position));
+    const index = Math.min(Math.floor(clamped), last);
+    const t = clamped - index;
+    const frame = this.frames[index];
+
+    if (t > 1e-4 && index < last) {
+      const n = this.residueCount ?? frame.ss.length;
+      if (!this._morph || this._morph.n !== n) this._morph = newMorphScratch(n);
+      const pose = morphFrames(frame, this.frames[index + 1], t, this._morph);
+      this.stage.render(pose.points, pose.ss, pose.confidence, pose.ssConfidence);
+    } else {
+      this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
+    }
+    this.rendered = clamped;
+
+    if (index !== this.index || !this._readoutsDrawn) {
+      this.index = index;
+      this._readoutsDrawn = true;
+      this._readouts(frame);
+      $('seek').value = String(index);
+      $('frame-count').textContent =
+        `${String(index + 1).padStart(3, ' ')} / ${this.frames.length}`;
+    }
   }
 
   _readouts(frame) {
@@ -668,29 +710,31 @@ class Player {
       // animation that advanced itself would slide out of sync with its own soundtrack over
       // the course of a forty-five second piece. Asking the audio where it is costs nothing
       // and cannot drift.
-      const frame = this.audio.frameAt(this.audio.positionSeconds);
-      // Only sweep when the trajectory frame actually changes. At 45 s for 150 frames that
-      // is about three redraws per sweep at 60 Hz, and the camera still moves on every one.
-      if (frame !== this.index || this.rendered !== frame) this._show(frame);
+      // A FRACTIONAL frame position, so the structure moves on every redraw rather than
+      // once every fifteen. 150 frames across about forty seconds of music is four frames a
+      // second, and holding each pose for fifteen redraws is exactly what looked like
+      // jumping. The clock is still the audio's, so a machine that cannot sweep at 60 Hz
+      // draws fewer poses and stays in time rather than sliding out of it.
+      const position = this.audio.frameAtFractional(this.audio.positionSeconds);
+      if (position !== this.rendered) this._showAt(position);
       else this.stage.redraw();
-      $('seek').value = String(this.index);
       if (this.audio.positionSeconds >= (this.audio.durationSeconds ?? 0)) {
         this.playing = false;
         $('play').textContent = 'Play';
       }
     } else if (this.playing && this.frames.length) {
-      // Silent playback, for a browser with no Web Audio or before the first gesture.
-      this.accumulator += delta;
-      const step = 1 / this.framesPerSecond;
-      while (this.accumulator >= step) {
-        this.accumulator -= step;
-        if (this.index >= this.frames.length - 1) {
-          this.playing = false;
-          $('play').textContent = 'Play';
-          break;
-        }
-        this._show(this.index + 1);
+      // Silent playback, for a browser with no Web Audio or before the first gesture. A
+      // float rather than a whole-frame step, for the same reason as above: there is no
+      // audio clock to follow here, so this one advances itself and is still drawn in
+      // between.
+      this.silentPosition = (this.silentPosition ?? this.index)
+                            + delta * this.framesPerSecond;
+      if (this.silentPosition >= this.frames.length - 1) {
+        this.silentPosition = this.frames.length - 1;
+        this.playing = false;
+        $('play').textContent = 'Play';
       }
+      this._showAt(this.silentPosition);
     } else if (this.frames.length) {
       // The camera moved, not the protein: draw the scene again without re-sweeping it.
       this.stage.redraw();
@@ -712,6 +756,7 @@ class Player {
     // Restart from the beginning if it has run to the end, so Play always plays something.
     const restart = this.index >= this.frames.length - 1;
     if (restart) { this.contactsSoFar = 0; this._show(0); }
+    this.silentPosition = restart ? 0 : this.index;
 
     this.playing = true;
     $('play').textContent = 'Pause';
@@ -763,6 +808,7 @@ class Player {
       this.contactsSoFar = this.frames.slice(0, target + 1)
         .reduce((sum, f) => sum + f.newContacts.length, 0);
       this.audio.seek(this._secondsForFrame(target));
+      this.silentPosition = target;
       this._show(target);
     });
     document.querySelectorAll('.card').forEach(card => {
