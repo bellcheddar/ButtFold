@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+
+.emd { color:#111111; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+  font-size:clamp(16px,1rem + 0.2vw,18px); line-height:1.7; overflow-wrap:anywhere; width:100%; max-width:none; }
+.emd *,.emd *::before,.emd *::after { box-sizing:border-box; }
+.emd h1,.emd h2,.emd h3,.emd h4,.emd h5,.emd h6 { line-height:1.2; margin:1.4em 0 0.6em; overflow-wrap:anywhere; }
+.emd h1 { font-size:clamp(2rem,1.5rem + 2.4vw,2.75rem); margin-top:0.2em; }
+.emd h1 img { vertical-align:middle; margin-right:0.4rem; }
+.emd h2 { font-size:clamp(1.5rem,1.25rem + 1.4vw,2rem); border-bottom:1px solid #e5e7eb; padding-bottom:0.3em; }
+.emd h3 { font-size:clamp(1.2rem,1.05rem + 0.9vw,1.5rem); }
+.emd p,.emd li,.emd blockquote,.emd pre { max-width:none; }
+.emd p,.emd ul,.emd ol,.emd blockquote,.emd pre,.emd table,.emd .emd-table-wrap,.emd hr { margin:0 0 1rem; }
+.emd ul,.emd ol { padding-left:1.4rem; }
+.emd ul.emd-tasklist { list-style:none; padding-left:0.2rem; }
+.emd ul.emd-tasklist li { margin:0.15rem 0; }
+.emd a { color:#467FF7; text-decoration:none; overflow-wrap:anywhere; }
+.emd a:hover { text-decoration:underline; }
+.emd img { max-width:100%; height:auto; }
+.emd p img { vertical-align:middle; }
+.emd pre,.emd code { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace; }
+.emd code { background:#f6f8fa; padding:0.15em 0.35em; border-radius:6px; overflow-wrap:anywhere; }
+.emd pre { background:#f6f8fa; padding:1rem; overflow-x:auto; border-radius:10px; border:1px solid #e5e7eb; }
+.emd pre code { background:transparent; padding:0; overflow-wrap:normal; }
+.emd blockquote { padding:0.2rem 1rem; border-left:4px solid #467FF7; color:#555555; }
+.emd hr { border:0; border-top:1px solid #e5e7eb; }
+.emd .emd-table-wrap { width:100%; overflow-x:auto; }
+.emd table { width:100%; border-collapse:collapse; border-spacing:0; font-size:0.95rem; }
+.emd th,.emd td { border:1px solid #e5e7eb; padding:0.7rem 0.8rem; text-align:left; vertical-align:top; white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
+.emd th { font-weight:700; }
+.emd .emd-data-table { table-layout:fixed; }
+.emd .emd-info-table { width:auto; max-width:100%; }
+.emd .emd-info-table th,.emd .emd-info-table td { border:0; padding:0.25rem 0.5rem; }
+@media (max-width:767px){
+  .emd { font-size:16px; line-height:1.65; }
+  .emd .emd-table-wrap { overflow-x:visible; }
+  .emd .emd-data-table,.emd .emd-data-table tbody,.emd .emd-data-table tr,.emd .emd-data-table td { display:block !important; width:100% !important; }
+  .emd .emd-data-table thead,.emd .emd-data-table th { display:none !important; }
+  .emd .emd-data-table { font-size:0.84rem; border:0; }
+  .emd .emd-data-table tr { margin:0 0 0.8rem; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#ffffff; }
+  .emd .emd-data-table td { border:0; border-top:1px solid #e5e7eb; padding:0.45rem 0.7rem; line-height:1.35; }
+  .emd .emd-data-table tr td:first-child { border-top:0; }
+  .emd .emd-data-table td::before { content:attr(data-label); display:block; font-size:0.7rem; line-height:1.2; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#555555; margin-bottom:0.2rem; }
+  .emd .emd-data-table td[data-label=""]::before { content:none; }
+  .emd .emd-info-table,.emd .emd-info-table tbody,.emd .emd-info-table tr { display:block; }
+  .emd .emd-info-table td { display:inline-block; width:auto; padding:0.15rem 0.4rem 0.15rem 0; }
+}
+
+</style>
+</head>
+<body>
+<div class="emd">
+<h1>🧬 ButtFold</h1>
+<blockquote>
+<p><strong>A protein folds in your browser and the trajectory becomes music.</strong></p>
+</blockquote>
+<p><a href="https://buttfold.mdeller.com"><img alt="live" src="https://img.shields.io/badge/live-buttfold.mdeller.com-00d084?logo=icloud&amp;logoColor=white"></a> <img alt="python" src="https://img.shields.io/badge/python-3.12.3-3776AB?logo=python&amp;logoColor=white"> <img alt="flask" src="https://img.shields.io/badge/flask-3.1.3-000000?logo=flask&amp;logoColor=white"> <img alt="gunicorn" src="https://img.shields.io/badge/gunicorn-26.2.0-499848?logo=gunicorn&amp;logoColor=white"> <img alt="nginx" src="https://img.shields.io/badge/nginx-1.24.0-009639?logo=nginx&amp;logoColor=white"> <img alt="sqlite" src="https://img.shields.io/badge/sqlite-3.45.1-003B57?logo=sqlite&amp;logoColor=white"> <img alt="WebAssembly" src="https://img.shields.io/badge/WebAssembly-emscripten%204.0.7-654FF0?logo=webassembly&amp;logoColor=white"> <img alt="three.js" src="https://img.shields.io/badge/three.js-0.160.0-000000?logo=threedotjs&amp;logoColor=white"> <img alt="audio" src="https://img.shields.io/badge/audio-Web%20Audio%20API-FF3D9A"> <img alt="numpy" src="https://img.shields.io/badge/numpy-2.5.2-013243?logo=numpy&amp;logoColor=white"> <img alt="pytest" src="https://img.shields.io/badge/pytest-51%20passing-0A9EDC?logo=pytest&amp;logoColor=white"> <img alt="node:test" src="https://img.shields.io/badge/node%3A%20test-26%20passing-339933?logo=nodedotjs&amp;logoColor=white"> <img alt="sonifier parity" src="https://img.shields.io/badge/sonifier%20parity-15%2C536%20notes%2C%200%20differences-467FF7"> <img alt="data" src="https://img.shields.io/badge/data-RCSB%20PDB%20%C2%B7%20UniProt%20%C2%B7%20ESMFold-9b51e0"> <img alt="licence" src="https://img.shields.io/badge/licence-MIT-1C244B"> <img alt="author" src="https://img.shields.io/badge/author-Marc%20C.%20Deller%2C%20D.Phil.-1C244B"></p>
+<table class="emd-info-table">
+<tr>
+<td>🌐 <b>App</b></td><td><a href="https://buttfold.mdeller.com" target="_blank" rel="noopener noreferrer">buttfold.mdeller.com</a></td>
+<td>✉️ <b>Contact</b></td><td><a href="mailto:marc@marcdeller.com">marc@marcdeller.com</a></td>
+<td>🐙 <b>GitHub</b></td><td><a href="https://github.com/bellcheddar/ButtFold" target="_blank" rel="noopener noreferrer">bellcheddar/ButtFold</a></td>
+</tr>
+</table>
+
+<hr>
+<p><img alt="Ubiquitin part way through folding: a magenta helix and cyan beta strands packing against a slate coil, with secondary-structure and radius-of-gyration traces beside the viewer" src="https://raw.githubusercontent.com/bellcheddar/ButtFold/main/docs/screenshots/stage.png"></p>
+<p>ButtFold takes a named protein, starts it as a self-avoiding random coil, and folds it with a C-alpha structure-based (Gō) model until it reaches its native structure. The trajectory is the instrument: contacts forming are note onsets, sequence separation sets register, hydropathy sets pitch, secondary structure sets texture (helix a sustained pad, sheet a staccato figure, coil an arpeggio), and compaction drives an accelerando. It is the web version of <a href="https://github.com/bellcheddar/PhoneFold">PhoneFold</a>, and it plays the same piece: <code>Sonifier.js</code> is held to note-for-note agreement with the shipped Swift, 15,536 notes across two proteins and all five styles, zero differences.</p>
+<p>Why it matters: most things that show a protein "folding" are showing you a structure prediction being refined, which is a picture of a computation rather than of a molecule, and the ones that sonify proteins almost always sonify the <strong>sequence</strong>, which is a lookup table set to music. This does neither. The physics is a real dynamical trajectory computed from scratch in your browser, and every note in the piece is caused by something the chain actually did, which makes the music a reading of the fold instead of a decoration on it. It is useful for: teaching what a folding funnel sounds like, showing a coarse-grained simulation to people who will never open a terminal, and hearing the difference between a protein that packs a hydrophobic core and one that never resolves.</p>
+<p><strong>What it is not.</strong> This is a funnelled coarse-grained simulation of a protein whose structure is already known, in the tradition of Clementi, Nymeyer and Onuchic (<em>J. Mol. Biol.</em> <strong>298</strong>:937, 2000). It is not a structure prediction, it is not an unbiased physical force field, and no protein folds this way. The app says so on the page, next to the thing it is describing, rather than in an About box.</p>
+<h2>🧱 Three ways to get a trajectory, one player</h2>
+<p>Everything downstream of "a stream of CA frames" is shared. The three sources produce byte-identical frame objects, which is tested rather than asserted.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th></th>
+<th>What it is</th>
+<th>Compute</th>
+<th>When it runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label=""><strong>Gallery</strong></td>
+<td data-label="What it is">Six folds precomputed on a Mac and served flat</td>
+<td data-label="Compute">none</td>
+<td data-label="When it runs">Always. First paint, no capability check, no wait</td>
+</tr>
+<tr>
+<td data-label=""><strong>Fold it live</strong></td>
+<td data-label="What it is">The same C compiled to WebAssembly, in a Web Worker</td>
+<td data-label="Compute">your CPU</td>
+<td data-label="When it runs">The primary interactive path where the browser can run it</td>
+</tr>
+<tr>
+<td data-label=""><strong>On the server</strong></td>
+<td data-label="What it is">The same C compiled natively, one job at a time</td>
+<td data-label="Compute">droplet, bounded</td>
+<td data-label="When it runs">The fallback, and anything too heavy for a phone</td>
+</tr>
+</tbody>
+</table></div>
+<p>A fold the server computes is baked into the gallery's own artefact format, so a queued result plays through the identical player with no code path of its own, and converges the cache: a protein folded once is served from disk forever after.</p>
+<h2>🎹 How a trajectory becomes music</h2>
+<p>The mapping is PhoneFold's, row for row, because the point is that someone who plays with this and then downloads the app hears the same piece.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Trajectory feature</th>
+<th>Musical parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Trajectory feature">New contact event</td>
+<td data-label="Musical parameter">Note onset; sequence separation sets the register</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Long-range hydrophobic contact</td>
+<td data-label="Musical parameter">Bass note (core packing)</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Helix content</td>
+<td data-label="Musical parameter">Sustained pad, stacked fourths</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Sheet content</td>
+<td data-label="Musical parameter">Staccato interlocking figure</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Coil content</td>
+<td data-label="Musical parameter">Arpeggiation between chord tones</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Per-residue confidence</td>
+<td data-label="Musical parameter">Note velocity for that residue</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Mean confidence</td>
+<td data-label="Musical parameter">Low-pass cutoff, detune, reverb</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Radius of gyration</td>
+<td data-label="Musical parameter">Tempo and register</td>
+</tr>
+<tr>
+<td data-label="Trajectory feature">Convergence</td>
+<td data-label="Musical parameter">Cadence, resolving to the tonic</td>
+</tr>
+</tbody>
+</table></div>
+<p>"Confidence" here is the fraction of a residue's own native contacts that have formed, which is real per-residue information: the hydrophobic core locks in first and completely while the termini are still loose, so a region that never resolves stays a detuned wash for the whole piece.</p>
+<p>Five styles ship (Fantasy, Jazz, Pop, Rock, Surf) and are the app's own JSON files, byte-identical. Each note is placed in space at its residue's live 3D position through a <code>PannerNode</code> with HRTF, so the fold collapses around the listener.</p>
+<h2>🚀 Usage</h2>
+<p>Open <a href="https://buttfold.mdeller.com">https://buttfold.mdeller.com</a>. Press Play. Drag the structure to turn it, scroll to zoom, double-click to reframe.</p>
+<p>To run it locally:</p>
+<pre><code class="language-bash">git clone https://github.com/bellcheddar/ButtFold.git
+cd ButtFold
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements-dev.txt
+./.venv/bin/python app.py                    # http://127.0.0.1:8007/
+./.venv/bin/python -m buttfold.worker        # optional: the fold queue
+</code></pre>
+<p><code>requirements.txt</code> is the web layer (Flask and gunicorn, no numpy) and <code>requirements-queue.txt</code> is the worker (numpy, for the bake). They are deliberately disjoint: the droplet runs both processes under separate systemd budgets so a fold can never starve the six other apps on the box.</p>
+<h2>🔧 Rebuilding the artefacts</h2>
+<p>Everything the app serves is committed. These regenerate it, and all of them run on the Mac.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Command"><code>tools/extract_natives.py</code></td>
+<td data-label="What it does">Vendors the native structures and starting coils from PhoneFold into <code>data/natives/</code></td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/bake_gallery.py</code></td>
+<td data-label="What it does">Folds the six gallery proteins and bakes them, with the collapse assertions</td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/bake_gallery.py --frame-fixtures</code></td>
+<td data-label="What it does">Also writes the exact coordinates the JS parity test compares against</td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/build_wasm.sh</code></td>
+<td data-label="What it does">Compiles the Gō model to WebAssembly, emsdk pinned at 4.0.7</td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/swift_score_dump/run.sh</code></td>
+<td data-label="What it does">Runs PhoneFold's own Sonifier over this gallery to produce the reference scores</td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/psea.py --fixtures</code>, <code>tools/contacts.py --fixtures</code></td>
+<td data-label="What it does">Reference outputs for the JS geometry ports</td>
+</tr>
+<tr>
+<td data-label="Command"><code>tools/check_all.sh</code></td>
+<td data-label="What it does">Every machine-verifiable gate in one command</td>
+</tr>
+</tbody>
+</table></div>
+<h2>🧪 Testing: verify the artefact, not the intent</h2>
+<p><code>tools/check_all.sh</code> runs seven gates. Four of them drive a real browser, because the failures that matter here are the ones where every unit test passes and the page does nothing.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th>Gate</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="Gate"><code>audit_wiring.py</code></td>
+<td data-label="What it proves">Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build</td>
+</tr>
+<tr>
+<td data-label="Gate">pytest, 51 tests</td>
+<td data-label="What it proves">Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions</td>
+</tr>
+<tr>
+<td data-label="Gate"><code>node --test</code>, 26 tests</td>
+<td data-label="What it proves">The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, and the camera's interaction model</td>
+</tr>
+<tr>
+<td data-label="Gate">stage renders</td>
+<td data-label="What it proves">A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes</td>
+</tr>
+<tr>
+<td data-label="Gate">drag, zoom, reframe</td>
+<td data-label="What it proves">Real pointer input through the DevTools protocol reaches the camera</td>
+</tr>
+<tr>
+<td data-label="Gate">sound</td>
+<td data-label="What it proves">The score reaches a <strong>running</strong> <code>AudioContext</code> from a real click, and the animation follows the audio clock</td>
+</tr>
+<tr>
+<td data-label="Gate">live fold, and the queue</td>
+<td data-label="What it proves">A browser folds trp-cage to Q &gt;= 0.95, and the droplet returns a fold and then serves it from cache</td>
+</tr>
+</tbody>
+</table></div>
+<p>Two assertions run at bake time and are repeated against the committed file, because they are the ones that catch a trajectory which is not doing the thing the animation is about: the chain must collapse (<code>Rg_end / Rg_start &lt;= 0.8</code>) and it must not start folded (under 25% of contacts on the first frame). PhoneFold threw away a whole bake for want of them.</p>
+<h2>📊 Measured, not estimated</h2>
+<p>Full detail with machines and dates in <a href="METRICS.md"><code>METRICS.md</code></a>. Nothing is quoted anywhere in this project until it is a measured row there.</p>
+<div class="emd-table-wrap"><table class="emd-data-table">
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-label="">trp-cage, folded live in Chrome</td>
+<td data-label="">11.2 s, final Q 1.000, 152 frames streamed</td>
+</tr>
+<tr>
+<td data-label="">the same fold, module alone, no frame building</td>
+<td data-label="">7.4 s (1.4x the native binary)</td>
+</tr>
+<tr>
+<td data-label="">trp-cage, folded on the droplet</td>
+<td data-label="">25.7 s under its CPU quota (16.6 s unconstrained)</td>
+</tr>
+<tr>
+<td data-label="">ubiquitin, on the droplet</td>
+<td data-label="">7 min 07 s, which sets the 76-residue cap</td>
+</tr>
+<tr>
+<td data-label="">WASM against native, forces</td>
+<td data-label="">agree to 2.9e-15 relative, against a 1e-9 bar</td>
+</tr>
+<tr>
+<td data-label="">Sonifier.js against the shipped Swift</td>
+<td data-label="">15,536 notes, <strong>0 differences</strong></td>
+</tr>
+<tr>
+<td data-label="">Live path against baked path</td>
+<td data-label="">300 frames, 5 fields each, <strong>byte-identical</strong></td>
+</tr>
+<tr>
+<td data-label="">Baked gallery payload</td>
+<td data-label="">842 kB for six folds and 900 frames</td>
+</tr>
+</tbody>
+</table></div>
+<p>One number that changed a plan: the parity bar was written as "RMSD within 0.1 Å of the native build". Measured, the <strong>same</strong> build folding the <strong>same</strong> coil lands anywhere from 0.84 to 1.16 Å depending only on the random-force seed, so that bar is narrower than the measurement's own noise and no correct implementation can meet it. Q over the same five seeds was 0.993 every time, so Q carries the weight and the RMSD bar is taken from the measured spread.</p>
+<h2>✅ To Do</h2>
+<p>Roadmap for ButtFold, roughly in dependency order. Suggestions welcome.</p>
+<ul class="emd-tasklist">
+<li><span class="emd-check">&#9989;</span> <strong>Measure before building.</strong> Droplet fold times, WASM speed in three browsers, WASM parity against native, and the baked payload size, all in <code>METRICS.md</code> before a line of the app existed. Two of the plan's own numbers had to change as a result</li>
+<li><span class="emd-check">&#9989;</span> <strong>The baked gallery.</strong> Six Gō folds with the collapse and first-frame-contact assertions green, served by Flask with explicit Cache-Control because Flask sends none on a template and heuristic caching then makes a deploy invisible</li>
+<li><span class="emd-check">&#9989;</span> <strong>The 3D stage.</strong> three.js tube along the CA trace, coloured by secondary structure, with live readouts and two time series. A degenerate initial spline gave the tube a NaN bounding sphere and three.js frustum-culled it forever behind a page that otherwise looked perfect</li>
+<li><span class="emd-check">&#9989;</span> <strong>Note-for-note sonifier parity with the shipped app.</strong> Float32 is emulated with <code>Math.fround</code> wherever the Swift uses <code>Float</code>: mean confidence accumulates over 76 residues in single precision on the phone, and the difference reaches note velocity and the cadence</li>
+<li><span class="emd-check">&#9989;</span> <strong>The Web Audio engine.</strong> All five style profiles unchanged, per-note HRTF panning, a lookahead scheduler, and the audio clock driving the animation rather than the reverse</li>
+<li><span class="emd-check">&#9989;</span> <strong>The live WebAssembly fold.</strong> <code>wasm_api.c</code> is additive: it <code>#include</code>s the vendored C rather than editing it, and reproduces the CLI's trajectory bitwise</li>
+<li><span class="emd-check">&#9989;</span> <strong>The droplet queue.</strong> One worker at nice 19 behind a residue cap, a depth cap, a per-IP cap and a timeout of three times the measured worst case, with a cache that converges</li>
+<li><span class="emd-check">&#9989;</span> <strong>The honesty layer.</strong> The app's own disclosure strings byte for byte, an engine badge that never scrolls away, and a disclosure paragraph as body text rather than behind a link</li>
+<li><span class="emd-check">&#9989;</span> <strong>PhoneFold's camera.</strong> Ported after drag-to-rotate proved broken the same way the app's once was: yaw and pitch with a clamp, which makes a vertical drag die mid-gesture. A quaternion attitude on the subject has no pole to protect</li>
+<li><span class="emd-check">&#11036;</span> <strong>Cartoon secondary structure.</strong> The ribbon is a plain tube, so a helix reads as a coiled tube and a strand as a straight one. The app draws a flat helical ribbon and an arrowed strand, and this is the biggest remaining visual gap</li>
+<li><span class="emd-check">&#11036;</span> <strong>Genie 2 gallery entries.</strong> Two to four backbones precomputed on the Mac, carrying the generative disclosure on both the card and the stage. Genie 2 needs Core ML or a GPU, so these can only ever be baked, never folded live</li>
+<li><span class="emd-check">&#11036;</span> <strong>Mobile Safari's fold time.</strong> The one measurement no machine here can take, and the one that decides whether phones fold live at all or route to the queue</li>
+<li><span class="emd-check">&#11036;</span> <strong>The PhoneFold store link.</strong> <code>static/links.json</code> carries a null <code>app_store_url</code>, so the card honestly says "in review". One field flips it when the app clears review</li>
+</ul>
+<h2>📚 Provenance and licences</h2>
+<p>The Gō model, the five style profiles, the native structures and the geometry and audio ports all come from <a href="https://github.com/bellcheddar/PhoneFold">PhoneFold</a> (MIT), vendored with provenance headers naming the source commit and re-vendored rather than patched. The C is unedited. <a href="THIRD-PARTY.md"><code>THIRD-PARTY.md</code></a> lists everything, with the papers behind the model, the secondary-structure assignment, the hydropathy scale and both radius-of-gyration scaling laws.</p>
+<p>ButtFold's own code is MIT: see <a href="LICENSE"><code>LICENSE</code></a>.</p>
+<p>The name is a joke about an accidental butt-dial. The page says so once, in the footer, and never again.</p>
+<hr>
+<h2>👤 Author</h2>
+<p><strong>Marc C. Deller, D.Phil.</strong><br>
+Structural biologist &amp; drug discovery scientist  </p>
+<table class="emd-info-table">
+<tr>
+<td>🌐</td><td><a href="https://marcdeller.com" target="_blank" rel="noopener noreferrer">marcdeller.com</a></td>
+<td>✉️</td><td><a href="mailto:marc@marcdeller.com">marc@marcdeller.com</a></td>
+<td>🐙</td><td><a href="https://github.com/bellcheddar/ButtFold" target="_blank" rel="noopener noreferrer">github.com/bellcheddar/ButtFold</a></td>
+</tr>
+</table>
+</div>
+</body>
+</html>

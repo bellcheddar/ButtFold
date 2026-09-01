@@ -1,0 +1,8 @@
+{
+  "ButtFold.md": {
+    "repo": "ButtFold",
+    "emoji": "🧬",
+    "tagline": "A protein folds in your browser and the trajectory becomes music.",
+    "why": "Why it matters: most things that show a protein \"folding\" are showing a structure prediction being refined, and the ones that sonify proteins almost always sonify the sequence, which is a lookup table set to music. This does neither: the physics is a real dynamical trajectory computed in your browser, and every note is caused by something the chain actually did."
+  }
+}
