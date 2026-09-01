@@ -195,6 +195,31 @@ const modes = await evaluate(`(async () => {
   return out;
 })()`);
 
+// The transport must be ON SCREEN without scrolling, at the sizes people actually have.
+// Marc's instruction, 2026-09-01: the structure should share more of the screen and the
+// Play bar should be visible at the bottom on a standard screen. That is arithmetic over
+// six element heights, which is exactly the sort of thing that is right when written and
+// wrong three commits later, so it is measured rather than trusted.
+const desktops = [];
+for (const [width, height] of [[1440, 900], [1280, 800], [1512, 982], [1366, 768]]) {
+  await send('Emulation.setDeviceMetricsOverride',
+             { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(450);
+  desktops.push(await evaluate(`(() => {
+    const play = document.getElementById('play').getBoundingClientRect();
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    return {
+      size: '${width}x${height}',
+      playBottom: Math.round(play.bottom),
+      viewportHeight: window.innerHeight,
+      stageHeight: Math.round(stage.height),
+      stageShare: stage.height / window.innerHeight,
+      scrolled: window.scrollY,
+    };
+  })()`));
+}
+await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+
 // And the page must be usable on a phone: the stage is specified as roughly the lower half
 // of the viewport, and nothing may push the body wider than the screen.
 await send('Emulation.setDeviceMetricsOverride', {
@@ -228,6 +253,11 @@ console.log(`screenshot    ${outPng}`);
 for (const [mode, m] of Object.entries(modes)) {
   console.log(`  ${mode.padEnd(12)} ${m.distinct} colours, `
               + `${(m.nonUniform * 100).toFixed(1)}% non-uniform, signature ${m.signature}`);
+}
+for (const d of desktops) {
+  console.log(`  ${d.size.padEnd(9)} play bar ends at ${d.playBottom}px of `
+              + `${d.viewportHeight}px, stage ${d.stageHeight}px `
+              + `(${(d.stageShare * 100).toFixed(0)}% of the viewport)`);
 }
 console.log(`mobile 390px  body ${mobile.bodyScrollWidth}px wide, stage `
             + `${mobile.stageWidth}x${mobile.stageHeight} of ${mobile.viewportHeight}px`);
@@ -266,6 +296,19 @@ for (let i = 0; i < signatures.length; i++) {
       failures.push(`the ${signatures[i][0]} and ${signatures[j][0]} colour modes render `
                     + 'identically, so at least one of them is wired to nothing');
     }
+  }
+}
+
+for (const d of desktops) {
+  if (d.playBottom > d.viewportHeight) {
+    failures.push(`at ${d.size} the Play bar ends at ${d.playBottom}px, below the `
+                  + `${d.viewportHeight}px fold: a visitor has to scroll to press Play`);
+  }
+  // And the structure must still be the subject: a layout that fits by shrinking the stage
+  // to a strip has solved the wrong problem.
+  if (!(d.stageShare > 0.38)) {
+    failures.push(`at ${d.size} the stage is only ${(d.stageShare * 100).toFixed(0)}% of the `
+                  + 'viewport; the structure should be the subject');
   }
 }
 

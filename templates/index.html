@@ -44,16 +44,19 @@
     <p class="no-wasm-note" id="boot-error"></p>
   </div>
 
-  <div class="pill-rows">
-    <div class="pill-row">
+  <!-- One row, not three. Three stacked rows cost about 110 px of vertical space and
+       pushed the stage and the transport off a 900 px screen; the structure is the subject
+       and the controls are not. They wrap on a narrow viewport rather than scrolling. -->
+  <div class="controls">
+    <div class="control">
       <span class="label">Colour</span>
       <div class="segmented" id="colour-mode" role="group" aria-label="Colour mode">
         <button type="button" data-mode="structure" aria-pressed="true">Structure</button>
-        <button type="button" data-mode="colourblind" aria-pressed="false">Colour-blind safe</button>
+        <button type="button" data-mode="colourblind" aria-pressed="false">Colour-blind</button>
         <button type="button" data-mode="confidence" aria-pressed="false">Confidence</button>
       </div>
     </div>
-    <div class="pill-row">
+    <div class="control">
       <span class="label">Style</span>
       <div class="segmented" id="style-mode" role="group" aria-label="Musical style">
         <button type="button" data-style="fantasy" aria-pressed="true">Fantasy</button>
@@ -63,17 +66,17 @@
         <button type="button" data-style="surf" aria-pressed="false">Surf</button>
       </div>
     </div>
-    <div class="pill-row">
+    <div class="control">
       <span class="label">Engine</span>
       <div class="segmented" id="engine-mode" role="group" aria-label="Frame source">
         <button type="button" data-source="baked" aria-pressed="true">Gallery</button>
-        <!-- "Fold it live" is enabled by feature detection at boot. "Fold on the server"
-             is always available: it is the fallback for a browser that cannot run the
-             module, so it must not itself depend on one. A disabled control carries the
-             reason in its title rather than just looking broken. -->
+        <!-- "Fold it live" is enabled by feature detection at boot. "Fold on the server" is
+             always available: it is the fallback for a browser that cannot run the module,
+             so it must not itself depend on one. A disabled control carries the reason in
+             its title rather than just looking broken. -->
         <button type="button" data-source="live" aria-pressed="false" disabled>Fold it live</button>
         <button type="button" data-source="queued" aria-pressed="false"
-                title="Fold it on the server instead: one job at a time, up to {{ residueCap }} residues">Fold on the server</button>
+                title="Fold it on the server instead: one job at a time, up to {{ residueCap }} residues">On the server</button>
       </div>
     </div>
   </div>
@@ -97,6 +100,18 @@
     <div class="readout"><span class="k">Coil</span><span class="v coil" id="r-coil">&mdash;</span></div>
   </div>
 
+  <div class="transport">
+    <button type="button" class="play" id="play">Play</button>
+    <input type="range" class="seek" id="seek" min="0" max="0" value="0" aria-label="Seek">
+    <span class="frame-count" id="frame-count">&mdash;</span>
+    <label class="volume-label" for="volume">Volume</label>
+    <input type="range" class="volume" id="volume" min="0" max="100" value="70"
+           aria-label="Volume">
+  </div>
+  <p class="score-summary" id="score-summary"></p>
+  <p class="live-status" id="live-status"></p>
+  <p class="audio-note" id="audio-note"></p>
+
   <div class="charts">
     <div class="chart">
       <h3>Secondary structure over time</h3>
@@ -109,18 +124,6 @@
       <div class="legend">the collapse, in &#197;ngstr&ouml;ms</div>
     </div>
   </div>
-
-  <div class="transport">
-    <button type="button" class="play" id="play">Play</button>
-    <input type="range" class="seek" id="seek" min="0" max="0" value="0" aria-label="Seek">
-    <span class="frame-count" id="frame-count">&mdash;</span>
-    <label class="volume-label" for="volume">Volume</label>
-    <input type="range" class="volume" id="volume" min="0" max="100" value="70"
-           aria-label="Volume">
-  </div>
-  <p class="score-summary" id="score-summary"></p>
-  <p class="live-status" id="live-status"></p>
-  <p class="audio-note" id="audio-note"></p>
 
   <div class="section-head">
     <h2>The gallery</h2>
@@ -183,25 +186,6 @@
     </div>
   </div>
   {% endfor %}
-
-  <div class="section-head">
-    <h2>More from Marc</h2>
-    <span class="note">the rest of the shelf</span>
-  </div>
-  <div class="gallery">
-    {% for app in links.apps if not app.featured %}
-    {% if app.app_store_url or app.fallback_url %}
-    <a class="card" href="{{ app.app_store_url or app.fallback_url }}" rel="noopener">
-    {% else %}
-    <div class="card card-static">
-    {% endif %}
-      <span class="name">{{ app.name }}</span>
-      <span class="sub">{% if app.app_store_url %}On the App Store{% elif app.status == 'in_review' %}In review at the App Store{% else %}In development{% endif %}</span>
-      <span class="quality">{{ app.platforms|join(' &middot; ')|safe }}</span>
-      <span class="blurb-small">{{ app.blurb }}</span>
-    {% if app.app_store_url or app.fallback_url %}</a>{% else %}</div>{% endif %}
-    {% endfor %}
-  </div>
 
 </main>
 

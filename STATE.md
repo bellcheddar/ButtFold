@@ -1,6 +1,6 @@
 # ButtFold: state
 
-Current phase: **Phase 5, shop window, honesty, polish** (Phases 0 to 4 have their machine gates met; Phase 2's HUMAN gate and two Phase 0 rows await Marc)
+Current phase: **live at https://buttfold.mdeller.com**. Phases 0 to 6 done. Marc has approved the sound, the disclosure wording and the resemblance for now; the rendering work he flagged is the open roadmap at the bottom.
 
 The task list below is the execution contract from PLAN.md section 11. Status is one of
 `todo` / `doing` / `blocked` / `done`. Phases advance on machine-verifiable gates only;
@@ -180,18 +180,54 @@ to a finished fold adopted by the player, badge reading "on the server".
 **Exit gate (machine): met.** The verbatim strings and the approved paragraph are in the
 served page; flipping one `links.json` field flips the card, verified by diffing two GETs.
 
-**HUMAN gates, open:**
+**HUMAN gates: both cleared by Marc, 2026-09-01.**
 
-1. **The disclosure paragraph wording.** It is live on the page now, and the test asserts
-   the exact text, so changing a word means changing `templates/index.html` and
-   `tests/test_honesty.py` together. Marc approves or rewrites it.
-2. **The side-by-side resemblance.** A ButtFold screenshot next to a PhoneFold screenshot.
-   `build/p0/stage.png` and `build/p0/stage-mobile.png` are current. The agent never marks
-   this met.
+1. ~~The disclosure paragraph wording~~ - **approved as written.**
+2. ~~The side-by-side resemblance~~ - **approved for now**, with the rendering work in the
+   roadmap below called out as the next thing. Marc will guide it.
+
+Settled the same day: the sound is right (Phase 2's human gate), and the shop window is cut
+back to PhoneFold alone.
 
 ## Phase 6: deploy and list
 
-**todo, and waiting on Marc**, because it is outward-facing in a way no earlier phase was:
-a new public subdomain, its own certbot certificate, and an entry in the mdeller.com
-launcher that publishes ButtFold to anyone who visits. Everything it needs is built and
-green locally. Gate: live and verified from outside.
+**done.** Live at **https://buttfold.mdeller.com**.
+
+| # | Task | Status |
+|---|---|---|
+| 6.1 | `deploy/nginx.conf`, two systemd units, `deploy/gunicorn.conf.py` | done |
+| 6.2 | `deploy.sh`, whose last act is a live GET rather than a restart | done |
+| 6.3 | Certbot certificate, and the nginx 1.24 http2 listen-line patch | done |
+| 6.4 | Launcher entry at the top of `apps.json`, status `building` | done |
+| 6.5 | `LICENSE` (MIT) and `THIRD-PARTY.md` | done |
+| 6.6 | README to the house standard | todo |
+
+**Exit gate (machine): met.** Verified from outside: the deployed version string, a route
+added in this deploy, the disclosure paragraph in the live HTML, `no-cache` on the HTML and
+a long cache on assets (both by plain GET, never HEAD), `application/wasm`, and HTTP/2. All
+four browser gates pass against the live site, including a real fold on the real droplet.
+
+State lives in `/var/lib/buttfold`, outside the deployed tree, because a deploy rsyncs over
+`/opt/buttfold` and anything the app wrote there would be destroyed or survive as a stale
+file nobody expects.
+
+---
+
+## Open roadmap
+
+Marc's, 2026-09-01, after seeing it live. He will guide the first item.
+
+- [ ] **Cartoon secondary structure.** The ribbon is a plain tube along the CA trace, so a
+      helix reads as a coiled tube and a strand as a straight one. The app draws a proper
+      cartoon: a flat helical ribbon and an arrowed strand. This is the biggest visual gap.
+- [ ] **The helix and strand colours are not reading as the app's.** Worth noting that the
+      default fold, trp-cage, is helix and coil only and has **no sheet at all**, so the
+      cyan never appears on first load. Protein G and ubiquitin show both. Whether the fix
+      is the default protein, the palette or the geometry is Marc's call.
+- [ ] Flip the launcher entry from `building` to `live` once Marc is happy.
+- [ ] The two P0-2 browser rows, deferred: Safari's protein G time and mobile Safari.
+- [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
+      card and the stage.
+- [ ] README to the house standard, via the `marcs-vibe-coding` skill.
+- [ ] Flip PhoneFold's `app_store_url` in `static/links.json` when it clears review, and
+      verify the badge in the served page.

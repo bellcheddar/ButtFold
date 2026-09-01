@@ -102,8 +102,12 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   .site-header .who { font-size: 14px; white-space: nowrap; }
   .site-header .header-link { display: none; }   /* the footer carries the contact link */
   .title-block { padding: 18px 0 10px; }
-  .pill-row > .label { min-width: 0; }
+  .controls { gap: 6px 12px; }
+  .control { flex: 1 1 100%; }
   .segmented { overflow-x: auto; max-width: 100%; }
+  /* On a phone the page scrolls anyway, so the stage takes a share of the viewport rather
+     than what is left over: half of it, which is what the app gives it. */
+  .stage-wrap { height: clamp(280px, 48vh, 460px); }
 }
 
 /* ---------------------------------------------------------------- title block -------
@@ -111,25 +115,31 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
    disclosure line. Exactly where the phone app puts it: in the frame, not in an About
    page. PLAN section 7. */
 
-.title-block { padding: 26px 0 14px; }
+.title-block { padding: 16px 0 6px; }
 .protein-name {
-  font-size: clamp(28px, 6vw, 44px); line-height: 1.1;
+  font-size: clamp(26px, 4.2vw, 36px); line-height: 1.1;
   font-weight: 700; color: var(--bf-text-1); margin: 0;
   letter-spacing: -0.02em;
 }
-.protein-sub { color: var(--bf-text-2); font-size: 15px; margin: 6px 0 0; }
+.protein-sub { color: var(--bf-text-2); font-size: 14px; margin: 4px 0 0; }
 .disclosure {
-  color: var(--bf-amber); font-size: 14px; margin: 10px 0 0;
+  color: var(--bf-amber); font-size: 13.5px; margin: 6px 0 0;
   font-weight: 500;
 }
 
-/* ---------------------------------------------------------------- pills -------------- */
+/* ---------------------------------------------------------------- controls ------------
+   One wrapping row rather than three stacked ones. Measured: three rows cost about 110 px
+   and pushed the stage and the transport off a 900 px screen. The structure is the subject;
+   the controls are not. */
 
-.pill-rows { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 18px; }
-.pill-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.pill-row > .label {
-  color: var(--bf-text-2); font-size: 12px; text-transform: uppercase;
-  letter-spacing: 0.08em; min-width: 74px;
+.controls {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px 20px; margin: 10px 0 12px;
+}
+.control { display: flex; align-items: center; gap: 8px; }
+.control > .label {
+  color: var(--bf-text-2); font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; white-space: nowrap;
 }
 .segmented {
   display: inline-flex; background: var(--bf-ground-raised);
@@ -138,8 +148,8 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 }
 .segmented button {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--bf-text-3); font: 500 13px/1 var(--bf-sans);
-  padding: 8px 14px; border-radius: var(--bf-radius-pill);
+  color: var(--bf-text-3); font: 500 12.5px/1 var(--bf-sans);
+  padding: 7px 12px; border-radius: var(--bf-radius-pill);
   transition: background 120ms ease, color 120ms ease;
   white-space: nowrap;
 }
@@ -153,9 +163,15 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   position: relative; background: var(--bf-stage);
   border-radius: var(--bf-radius); overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  /* Roughly the lower half of the viewport on a phone; capped so a desktop does not get a
-     stage taller than the screen. */
-  height: clamp(320px, 52vh, 560px);
+  /* Sized from what is left after everything above and below it, so the transport is on
+     screen without scrolling. The subtrahend is measured, not guessed: header 56, title
+     block ~86, controls ~44, readouts ~52, transport ~56, plus margins. Measured in a real
+     browser at four common sizes rather than added up on paper: 330 was five pixels short
+     at 1280x800 and 1366x768, which is exactly the kind of arithmetic that is right when
+     written and wrong three commits later. tests/stage_screenshot.mjs now checks the Play
+     bar's bottom edge against the fold at each of them. The floor keeps a very short window
+     usable by letting the page scroll rather than crushing the stage. */
+  height: clamp(260px, calc(100vh - 344px), 560px);
   touch-action: none;   /* drag orbits the structure; it must not scroll the page */
 }
 .stage-wrap canvas { display: block; width: 100%; height: 100%; }
@@ -188,13 +204,13 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   background: rgba(255, 255, 255, 0.04); border-radius: 0 0 var(--bf-radius) var(--bf-radius);
   overflow: hidden;
 }
-.readout { background: var(--bf-ground); padding: 10px 12px; }
+.readout { background: var(--bf-ground); padding: 7px 12px; }
 .readout .k {
   display: block; color: var(--bf-text-2); font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.09em;
 }
 .readout .v {
-  display: block; font-family: var(--bf-mono); font-size: 17px;
+  display: block; font-family: var(--bf-mono); font-size: 15px;
   color: var(--bf-text-1); font-variant-numeric: tabular-nums; margin-top: 2px;
 }
 .readout .v.helix { color: var(--bf-helix); }
@@ -203,7 +219,7 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 
 /* ---------------------------------------------------------------- charts -------------- */
 
-.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0 14px; }
 @media (max-width: 620px) { .charts { grid-template-columns: 1fr; } }
 .chart {
   background: var(--bf-ground-raised); border-radius: var(--bf-radius);
@@ -223,13 +239,13 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 
 .transport {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  margin: 16px 0 8px;
+  margin: 12px 0 6px;
 }
 .play {
   appearance: none; border: 0; cursor: pointer;
   background: var(--bf-action); color: #fff;
   font: 600 15px/1 var(--bf-sans);
-  padding: 13px 26px; border-radius: var(--bf-radius-pill);
+  padding: 12px 26px; border-radius: var(--bf-radius-pill);
   min-width: 116px;
 }
 .play:hover { filter: brightness(1.12); }

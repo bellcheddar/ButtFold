@@ -1,0 +1,36 @@
+# systemd unit for the ButtFold web app (gunicorn behind nginx on 8007).
+# Installed to /etc/systemd/system/buttfold-web.service by deploy.sh --provision.
+[Unit]
+Description=ButtFold web app (gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=buttfold
+Group=buttfold
+WorkingDirectory=/opt/buttfold
+Environment=BUTTFOLD_STATE=/var/lib/buttfold
+Environment=BUTTFOLD_CACHE=/var/lib/buttfold/cache
+ExecStart=/opt/buttfold/.venv/bin/gunicorn --config /opt/buttfold/deploy/gunicorn.conf.py app:app
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+# The deployed tree is a read-only copy of the repo: a deploy rsyncs over it, so anything
+# the app wrote there would be destroyed on the next deploy or survive as a stale file
+# nobody expects. All state lives under /var/lib/buttfold instead.
+ReadWritePaths=/var/lib/buttfold
+
+# The web layer has no numpy and no torch; it serves a template and reads JSON. 250M is a
+# backstop rather than a limit it will approach: ButtFold must not be able to take the box
+# down and leave AlphaFraud, ChemSage, chatPDB, BoltzMaker, FlexAppeal and PANTS in the
+# wreckage.
+MemoryMax=250M
+CPUQuota=80%
+
+[Install]
+WantedBy=multi-user.target

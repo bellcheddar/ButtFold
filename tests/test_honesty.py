@@ -56,11 +56,13 @@ def visible_text(html: str) -> str:
 
 
 def featured_block(html: str) -> str:
-    """Just the featured app's card. Scoped exactly, because the "More from Marc" row below
-    it legitimately contains other apps that ARE still in review, and a text window that
-    overshoots into them tests the wrong card."""
+    """Just the featured app's card, scoped exactly rather than by a text window.
+
+    A window that overshoots reads whatever follows the card, and an earlier version of
+    this test did exactly that and reported the wrong card's state.
+    """
     start = html.index('class="shop-feature"')
-    end = html.index('class="section-head"', start)
+    end = html.index("</main>", start)
     return visible_text(html[start:end])
 
 
@@ -119,12 +121,20 @@ def test_the_engine_badge_element_is_present_and_says_where(client):
 
 # ------------------------------------------------------------------ the shop window -----
 
+def test_every_app_in_the_data_is_rendered(client):
+    """links.json is the shop window's only source, so an entry nothing renders is a dead
+    declaration - the class of thing tools/audit_wiring.py exists to catch."""
+    links = json.loads(LINKS.read_text())
+    assert links["apps"], "the shop window has no apps at all"
+    text = visible_text(client.get("/").get_data(as_text=True))
+    for entry in links["apps"]:
+        assert entry["name"] in text, f"{entry['name']} is in links.json and not on the page"
+
+
 def test_no_app_is_shown_as_live_before_it_is(client):
     """The honest state is the default. PLAN section 8 and the trademark note in 13."""
     links = json.loads(LINKS.read_text())
     text = visible_text(client.get("/").get_data(as_text=True))
-    for entry in links["apps"]:
-        assert entry["name"] in text, f"{entry['name']} is missing from the page"
     if all(entry["app_store_url"] is None for entry in links["apps"]):
         assert "Download on the App Store" not in text, (
             "the page offers an App Store download while no app has a store URL")
@@ -187,6 +197,13 @@ def test_flipping_links_json_flips_the_card_with_no_code_change(client, monkeypa
     assert "In review at the App Store" not in card, "the card still says it is in review"
     assert "apps.apple.com/app/id1234567890" in after_html, "the store URL is not linked"
     assert before != after, "changing links.json changed nothing in the served page"
-    # The other apps, which did NOT change, must be untouched: a flip that rewrote the whole
-    # shop window would pass the assertions above and be the wrong mechanism.
-    assert "JUMPjet" in after and "In review at the App Store" in after
+    # Only the card changed. A flip that rewrote the page around it would pass every
+    # assertion above and be the wrong mechanism, so the rest of the page is compared for
+    # equality with the card's own block cut out of both.
+    def without_card(html: str) -> str:
+        head = html[:html.index('class="shop-feature"')]
+        tail = html[html.index("</main>"):]
+        return visible_text(head + tail)
+
+    assert without_card(before_html) == without_card(after_html), (
+        "flipping one links.json field changed the page outside the shop card")

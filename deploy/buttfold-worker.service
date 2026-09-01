@@ -1,0 +1,39 @@
+# systemd unit for the ButtFold fold queue: one worker, one job at a time.
+# Installed to /etc/systemd/system/buttfold-worker.service by deploy.sh --provision.
+#
+# A separate unit from the web app, bound to it, because the two have genuinely different
+# budgets: the web layer is IO and must stay responsive, and this spends minutes of CPU in
+# a C binary. PartOf means restarting or stopping the web app takes this with it, so a
+# deploy cannot leave an orphaned worker folding against an old binary.
+[Unit]
+Description=ButtFold fold queue worker
+After=network.target buttfold-web.service
+PartOf=buttfold-web.service
+
+[Service]
+Type=simple
+User=buttfold
+Group=buttfold
+WorkingDirectory=/opt/buttfold
+Environment=BUTTFOLD_STATE=/var/lib/buttfold
+Environment=BUTTFOLD_CACHE=/var/lib/buttfold/cache
+ExecStart=/opt/buttfold/.venv/bin/python -m buttfold.worker
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/buttfold
+
+# The fold itself is 298 lines of C with a measured peak RSS of 2.4 MB (P0-1); numpy for
+# the bake is the only real consumer here. And it runs at nice 19 inside its own process,
+# so this quota is a second line of defence rather than the first: a fold must never be
+# able to starve nginx or the other six apps.
+MemoryMax=400M
+CPUQuota=60%
+Nice=19
+
+[Install]
+WantedBy=multi-user.target

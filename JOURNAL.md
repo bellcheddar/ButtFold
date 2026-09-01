@@ -226,3 +226,42 @@ folds trp-cage live, the droplet queue returns a fold and then serves it from ca
 blocks further building: Phase 6 is the deploy, and it creates a public subdomain, a
 certificate and a launcher entry that points mdeller.com's front page at this. That is his
 call, not mine.
+
+### Live
+
+Marc approved the sound, the disclosure wording and the resemblance for now, cut the shop
+window back to PhoneFold alone, asked for the controls to give the structure more of the
+screen with the Play bar visible, and said to deploy.
+
+The controls went from three stacked rows to one wrapping row, which is about 110 px of
+vertical space, and the stage is now sized from what is left rather than from a fixed
+clamp. The arithmetic was five pixels short at 1280x800 and 1366x768 on the first try -
+exactly the sort of sum that is right when written and wrong three commits later - so the
+screenshot gate now measures the Play button's bottom edge against the fold at four common
+sizes and fails if a visitor would have to scroll to press Play.
+
+Deployed to `buttfold.mdeller.com`: two systemd units, an nginx vhost with the 1.24
+`listen 443 ssl http2` form, `application/wasm`, per-location Cache-Control and its own
+access log so the launcher's counter stays clean. State lives in `/var/lib/buttfold` rather
+than in the deployed tree, which a deploy rsyncs over.
+
+The http2 patch is the small lesson. A loose `sed s/listen 443 ssl;/.../` rewrote the
+comment in the vhost that explains the patch, because the comment quotes the string it
+matches. Anchored to the start of the line now.
+
+`deploy.sh` ends by fetching the live site back and asserting the NEW version string, a
+route added in this deploy, the disclosure paragraph, Cache-Control by plain GET on both
+the HTML and an asset, the wasm MIME type and HTTP/2. Then all four browser gates were run
+against the live site rather than against localhost.
+
+One production measurement worth keeping: the droplet folds trp-cage in **25.7 s** live
+against P0-1's 16.6 s. The difference is the systemd `CPUQuota=60%` on top of `nice -n 19`,
+which is deliberate - a fold must never starve nginx or the other six apps - and 1.55x is
+what it costs. Ubiquitin at the residue cap scales to about 11 minutes against a 21-minute
+timeout, so both bounds still hold.
+
+What is left is the rendering, and it is the real gap: the ribbon is a plain tube, so a
+helix reads as a coiled tube rather than as the app's flat helical ribbon and arrowed
+strand. Noted alongside it, because it may be half of what Marc saw: the default fold is
+trp-cage, which is helix and coil only and has **no sheet at all**, so the cyan never
+appears until you pick protein G or ubiquitin.

@@ -284,6 +284,40 @@ Progress is read from the growing frame file's **byte count**: the stream format
 little-endian int32 then float32 xyz triples, so bytes map to frames exactly. Parsing the
 binary's stdout would be a second and lossier source of the same fact.
 
+## Phase 6: live, and measured from outside
+
+2026-09-01. `https://buttfold.mdeller.com`, verified from this Mac against the deployed
+site rather than against a local server.
+
+| check | result |
+|---|---|
+| `/healthz` reports the deployed version | 0.1.0, six folds |
+| a route added in this deploy (`/api/native/<id>`) | serves the coil |
+| the disclosure paragraph, in the live HTML | present |
+| HTML `Cache-Control` (plain GET, not HEAD) | `no-cache, must-revalidate` |
+| static asset `Cache-Control` | `public, max-age=31536000, immutable` |
+| `.wasm` content type | `application/wasm` |
+| HTTP version | **2** |
+| certificate | Let's Encrypt, expires 2026-11-30, auto-renewing |
+
+### The browser gates, against the live site
+
+| gate | result |
+|---|---|
+| stage renders, three colour modes distinct | 95 / 96 / 208 colours, all different |
+| Play bar above the fold at 1440x900, 1280x800, 1512x982, 1366x768 | yes, stage 55 to 62% of the viewport |
+| sound reaches a running AudioContext | yes; clock advanced 2.47 s in 2.5 s |
+| a browser folds trp-cage live | Q 1.000, 152 frames, 11.2 s |
+| the droplet queue returns a fold | **25.7 s**, Q 1.000, then 0.5 s from cache |
+
+**The droplet folds trp-cage in 25.7 s in production against P0-1's 16.6 s.** Not a
+regression and not a mystery: P0-1 measured the bare binary at `nice -n 19`, and the
+deployed worker additionally runs under systemd with `CPUQuota=60%` and `Nice=19` while the
+box serves seven apps. The quota is deliberate - a fold must never be able to starve nginx
+or the other six - and 1.55x is what it costs. Scaled by the same factor, ubiquitin at the
+residue cap is about 11 minutes against the 21-minute timeout, so the cap and the timeout
+both still hold.
+
 ## Phase 5: the honesty strings and the shop window
 
 2026-09-01. The machine half of the Phase 5 gate. The human half - the wording, and the
