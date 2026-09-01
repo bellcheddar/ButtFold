@@ -149,6 +149,31 @@ const afterStyle = await evaluate(`(() => {
            notes: p.scored.moments.reduce((s, m) => s + m.notes.length, 0) };
 })()`);
 
+/* Can this machine drive an audio clock at all?
+ *
+ * A bare AudioContext, in the same browser, with none of ButtFold in it. Measured because a
+ * stalled clock and a broken sonifier look identical from the outside: the context reports
+ * "running" either way and `currentTime` does not move. On this Mac, on 2026-09-01, a bare
+ * context advanced 0.005 s in 2 s - one render quantum, which is what you get when the
+ * render thread is created and then never driven - and the app's own gate had been reporting
+ * that as "the audio clock advanced only 0.01 s in 2.5 s", which reads as ButtFold's fault
+ * and is not. The clock assertions are skipped when this says so; everything else still
+ * runs, so a real regression in the scoring is still caught. */
+const clockProbe = await evaluate(`(async () => {
+  const ctx = new AudioContext();
+  await ctx.resume();
+  const t0 = ctx.currentTime;
+  await new Promise(r => setTimeout(r, 1500));
+  const advanced = ctx.currentTime - t0;
+  const state = ctx.state;      // read BEFORE closing, or it always reports "closed"
+  ctx.close();
+  return { state, advanced, sampleRate: ctx.sampleRate };
+})()`);
+const clockWorks = clockProbe.advanced > 0.5;
+console.log(`clock probe   a bare AudioContext advanced `
+            + `${clockProbe.advanced.toFixed(3)} s in 1.5 s`
+            + (clockWorks ? '' : '  <- this browser has no audio clock'));
+
 chrome.kill();
 
 console.log(`fold          ${before.fold}, style ${before.style}`);
@@ -175,17 +200,20 @@ if (during.contextState !== 'running') {
                 + 'is correct and reaches no audio device');
 }
 if (!during.playing) failures.push('the audio engine is not playing after Play');
-if (!(during.position > 1.0)) {
-  failures.push(`the audio clock advanced only ${during.position.toFixed(2)} s in 2.5 s`);
-}
 if (!(during.scheduledMoments > 0)) failures.push('no moments were scheduled');
-if (!(during.frame > 0)) {
-  failures.push('the animation never advanced, so it is not following the audio clock');
+// Everything below here needs a clock that moves, so it is asserted only where one does.
+if (clockWorks) {
+  if (!(during.position > 1.0)) {
+    failures.push(`the audio clock advanced only ${during.position.toFixed(2)} s in 2.5 s`);
+  }
+  if (!(during.frame > 0)) {
+    failures.push('the animation never advanced, so it is not following the audio clock');
+  }
 }
 if (during.playLabel !== 'Pause') failures.push(`the button says "${during.playLabel}"`);
 if (during.note) failures.push(`the page reported an audio problem: ${during.note}`);
 if (afterStyle.style !== 'jazz') failures.push('the style pill did not switch');
-if (!(afterStyle.position >= during.position)) {
+if (clockWorks && !(afterStyle.position >= during.position)) {
   failures.push(`switching style sent playback backwards, from ${during.position.toFixed(2)} s `
                 + `to ${afterStyle.position.toFixed(2)} s: that is a restart, which a listener hears`);
 }
@@ -196,4 +224,11 @@ if (failures.length) {
   failures.forEach(f => console.error(`  - ${f}`));
   process.exit(1);
 }
-console.log('\nPASS');
+if (!clockWorks) {
+  console.log('\nPASS, with the clock assertions SKIPPED: this browser reported an '
+              + 'AudioContext in state "' + clockProbe.state + '" whose time did not move, '
+              + 'with no page of ours loaded. The score, the scheduling and the transport '
+              + 'were all checked; playback speed and the animation following it were not.');
+} else {
+  console.log('\nPASS');
+}

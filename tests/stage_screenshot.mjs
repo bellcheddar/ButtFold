@@ -216,7 +216,18 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1512, 982], [1366, 768
     const readouts = [...document.querySelectorAll('.readout')]
       .map(el => Math.round(el.getBoundingClientRect().top));
     const volume = document.getElementById('volume').getBoundingClientRect();
+    const transport = document.querySelector('.stage-transport').getBoundingClientRect();
+    const segmented = document.querySelector('.segmented').getBoundingClientRect();
     return {
+      // Marc's instruction: the Play panel matches the COLOUR/STYLE/ENGINE panel. Compared
+      // as measured boxes rather than as matching declarations, because the two are built
+      // from different padding and font stacks and only agree by arithmetic.
+      transportHeight: Math.round(transport.height),
+      segmentedHeight: Math.round(segmented.height),
+      playFontPx: parseFloat(getComputedStyle(document.getElementById('play')).fontSize),
+      segmentedFontPx: parseFloat(
+        getComputedStyle(document.querySelector('.segmented button')).fontSize),
+      volumeIconVisible: !!document.querySelector('.volume-icon')?.getBoundingClientRect().width,
       size: '${width}x${height}',
       playBottom: Math.round(play.bottom),
       // The transport is inside the viewer now, so "on screen" is no longer arithmetic over
@@ -254,7 +265,18 @@ await send('Emulation.setDeviceMetricsOverride', {
 await sleep(900);
 const mobile = await evaluate(`(() => {
   const stage = document.getElementById('stage').getBoundingClientRect();
+  const tops = [...document.querySelectorAll('.readout')]
+    .map(el => Math.round(el.getBoundingClientRect().top));
+  const rows = [...new Set(tops)].sort((a, b) => a - b);
   return {
+    // The two charts must be on a phone AND have a canvas with height in them. They were
+    // never hidden: the canvas flexes into its row, and off the stage's row there was no
+    // height to flex into, so both drew a title and a legend with a hairline between them.
+    chartCanvases: [...document.querySelectorAll('.chart canvas')]
+      .map(c => Math.round(c.getBoundingClientRect().height)),
+    // Eight readouts as four columns and two rows, which is why there are eight.
+    readoutRows: rows.length,
+    readoutColumns: rows.length ? tops.filter(t => t === rows[0]).length : 0,
     bodyScrollWidth: document.body.scrollWidth,
     viewportWidth: window.innerWidth,
     stageHeight: Math.round(stage.height),
@@ -282,13 +304,16 @@ for (const [mode, m] of Object.entries(modes)) {
 }
 for (const d of desktops) {
   console.log(`  ${d.size.padEnd(9)} volume ${d.volumeIsVertical ? 'vertical' : 'FLAT'}, `
+              + `panels ${d.transportHeight}/${d.segmentedHeight}px, `
               + `readouts end at ${d.readoutsBottom}px of `
               + `${d.viewportHeight}px, stage ${d.stageHeight}px `
               + `(${(d.stageShare * 100).toFixed(0)}%), controls ${d.controlRows} row`
               + `${d.controlRows === 1 ? '' : 's'} (${d.controlsWidth}px), `
               + `readouts ${d.readoutRows} row${d.readoutRows === 1 ? '' : 's'}`);
 }
-console.log(`mobile 390px  body ${mobile.bodyScrollWidth}px wide, stage `
+console.log(`mobile 390px  charts ${mobile.chartCanvases.join(' and ')}px tall, readouts `
+            + `${mobile.readoutColumns}x${mobile.readoutRows}, `
+            + `body ${mobile.bodyScrollWidth}px wide, stage `
             + `${mobile.stageWidth}x${mobile.stageHeight} of ${mobile.viewportHeight}px`);
 if (pageLogs.length) pageLogs.forEach(l => console.log(`  [page] ${l}`));
 
@@ -329,6 +354,16 @@ for (let i = 0; i < signatures.length; i++) {
 }
 
 for (const d of desktops) {
+  // Same height and same text size as the control panel above it.
+  if (Math.abs(d.transportHeight - d.segmentedHeight) > 1) {
+    failures.push(`at ${d.size} the Play panel is ${d.transportHeight}px and the control `
+                  + `panel is ${d.segmentedHeight}px`);
+  }
+  if (d.playFontPx !== d.segmentedFontPx) {
+    failures.push(`at ${d.size} Play is set at ${d.playFontPx}px and the control buttons at `
+                  + `${d.segmentedFontPx}px`);
+  }
+  if (!d.volumeIconVisible) failures.push(`at ${d.size} the volume icon did not render`);
   if (!d.playInsideStage) {
     failures.push(`at ${d.size} the transport is not inside the viewer it controls`);
   }
@@ -376,6 +411,17 @@ if (!(mobile.stageHeight >= 300)) {
   failures.push(`the stage is only ${mobile.stageHeight}px tall on a phone`);
 }
 if (!mobile.controlsReachable) failures.push('a control is off the right edge on a phone');
+if (mobile.chartCanvases.length !== 2) {
+  failures.push(`${mobile.chartCanvases.length} chart canvases on a phone, want 2`);
+}
+if (!mobile.chartCanvases.every(h => h >= 80)) {
+  failures.push(`a chart canvas is ${Math.min(...mobile.chartCanvases)}px tall on a phone: `
+                + 'the chart is present but there is nothing in it');
+}
+if (mobile.readoutRows !== 2 || mobile.readoutColumns !== 4) {
+  failures.push(`the readouts are ${mobile.readoutColumns} by ${mobile.readoutRows} on a `
+                + 'phone, want 4 by 2');
+}
 
 if (failures.length) {
   console.error('\nFAIL');

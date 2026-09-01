@@ -271,6 +271,19 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       same specificity, three hundred lines above the rule it meant to override, so a phone
       was using the desktop calculation - and the subtrahend in that calculation has now
       been five pixels short twice, so the gate measures where the readouts actually end.
+- [x] **The Play panel matches the control panel** at 34 px and 12 px in both, compared as
+      measured boxes rather than as matching declarations; the volume carries a speaker mark
+      above it; and there is an eighth readout, the end-to-end distance, so one desktop row
+      is also a 4x2 grid on a phone. The charts were never hidden on a phone: a canvas
+      flexes into its row and off the stage's row there was no row height to flex into, so
+      both drew a title and a legend with a hairline between them.
+- [!] **This Mac's headless Chrome has no audio clock**, as of 2026-09-01. A bare
+      `AudioContext` with no page of ours loaded reports state "running" and advances 0.005 s
+      in 1.5 s, which is one render quantum: the render thread is created and never driven.
+      It is not ButtFold - the same gate fails identically against the previously deployed
+      build - so `tests/audio_smoke.mjs` now probes for it and skips only the clock
+      assertions, naming the cause. The score, the scheduling and the transport are still
+      checked. **The sonifier is unverified on this machine until that clears.**
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

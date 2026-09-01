@@ -608,6 +608,13 @@ class Player {
       : (this.contactsSoFar ?? 0) + frame.newContacts.length;
 
     $('r-rg').textContent = frame.rg.toFixed(1);
+    // The other standard measure of a chain's size, and the one that says something the
+    // radius of gyration does not: a chain can compact while its termini stay apart, which
+    // is what a two-domain collapse looks like on the way in. Computed here from the frame's
+    // own quantised coordinates and the stage's ruler rather than baked into the artefact,
+    // so it needed no re-bake of the gallery and it is the same arithmetic for a streamed
+    // frame as for a stored one.
+    $('r-ends').textContent = endToEnd(frame.points, this.stage.angstromsPerUnit).toFixed(1);
     // 0 at the denatured radius of gyration for a chain this length and 1 at the native
     // one, both from measured scaling laws. The same function the sonifier drives its
     // accelerando from, so the number on screen and the tempo cannot disagree.
@@ -868,6 +875,21 @@ function smoothed(values, window) {
  * the standard way to round a polyline without it departing from the data: the curve passes
  * through every midpoint and is pulled toward every sample. Straight `lineTo` segments left
  * visible corners at 150 points across 400 pixels. */
+/** Distance between the first and last alpha carbon, in Angstroms.
+ *
+ * `points` are quantised units, which is what everything downstream of the frame builder
+ * carries, so the stage's ruler converts back. A frame drawn against the wrong ruler would
+ * show a wrong distance rather than a wrong size, which is exactly why the ruler now travels
+ * with a streamed frame instead of being read off the previously loaded artefact. */
+export function endToEnd(points, angstromsPerUnit) {
+  const last = points.length - 3;
+  if (last < 3 || !(angstromsPerUnit > 0)) return 0;
+  const dx = points[last] - points[0];
+  const dy = points[last + 1] - points[1];
+  const dz = points[last + 2] - points[2];
+  return Math.sqrt(dx * dx + dy * dy + dz * dz) * angstromsPerUnit;
+}
+
 function polyline(ctx, values, w, h, low, high, colour, window = 1) {
   const series = window > 1 ? smoothed(values, window) : values;
   if (series.length < 2) return;

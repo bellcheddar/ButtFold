@@ -247,11 +247,18 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   overflow: hidden;
 }
 /* One row beside the stage, always. Two rows cost 57 px and put the transport back below
-   the fold, so the labels are short enough to fit six columns in a 60% one: the units are
+   the fold, so the labels are short enough to fit eight columns in a 60% one: the units are
    in the label and the values speak for themselves. */
 @media (min-width: 901px) {
-  .readouts { grid-template-columns: repeat(7, 1fr); }
-  .readout .k { font-size: 9.5px; letter-spacing: 0.06em; white-space: nowrap; }
+  .readouts { grid-template-columns: repeat(8, 1fr); }
+  .readout { padding: 7px 8px; }
+  .readout .k { font-size: 9.5px; letter-spacing: 0.04em; white-space: nowrap; }
+}
+/* Four by two on a phone, which is why there are eight of them rather than seven: an
+   `auto-fit` grid gave three, three and one, and a row with a single figure in it reads as
+   something having gone wrong rather than as a layout. */
+@media (max-width: 900px) {
+  .readouts { grid-template-columns: repeat(4, 1fr); }
 }
 .readout { background: var(--bf-ground); padding: 7px 12px; }
 .readout .k {
@@ -273,10 +280,22 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   display: grid; grid-template-rows: 1fr 1fr; gap: 12px; margin: 0;
   flex: 1 1 auto; min-height: 0;
 }
+/* Below 900 px the charts leave the stage's row, and with it the height they were flexing
+   into. A canvas's flex basis is 0 with `min-height: 0` - deliberately, so it cannot feed
+   its own height back into itself - so in an auto-height row it collapsed to nothing and
+   both charts rendered as a title and a legend with a hairline between them. They need a
+   row height of their own down here, which is the whole fix. */
 @media (max-width: 900px) {
-  .charts { grid-template-rows: none; grid-template-columns: 1fr 1fr; margin: 14px 0 0; }
+  .charts {
+    grid-template-rows: none; grid-template-columns: 1fr 1fr;
+    margin: 14px 0 0; flex: none;
+  }
+  .chart { height: 168px; }
 }
-@media (max-width: 620px) { .charts { grid-template-columns: 1fr; } }
+@media (max-width: 620px) {
+  .charts { grid-template-columns: 1fr; }
+  .chart { height: 150px; }
+}
 .chart {
   background: var(--bf-ground-raised); border-radius: var(--bf-radius);
   padding: 10px 12px 8px; border: 1px solid rgba(255, 255, 255, 0.04);
@@ -302,10 +321,14 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
    that only ever act on the viewer outside it. The stage's own pointer handlers are on the
    canvas, not on this wrapper, so a drag on a slider cannot also orbit the protein. */
 
+/* Sized to match a `.segmented` group exactly, on Marc's instruction: 3px of padding
+   around a 12px/1 control with 7px of its own, plus a 1px border, is 34px in both. The
+   numbers are written here rather than shared through a variable because the two are read
+   together on screen and a gate compares their measured heights. */
 .stage-transport {
   position: absolute; z-index: 2; left: 12px; right: 12px; top: 12px;
-  display: flex; align-items: center; gap: 12px;
-  padding: 7px 14px 7px 7px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 3px 12px 3px 3px;
   background: rgba(5, 4, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--bf-radius-pill);
@@ -314,15 +337,17 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .play {
   appearance: none; border: 0; cursor: pointer;
   background: var(--bf-action); color: #fff;
-  font: 600 14px/1 var(--bf-sans);
-  padding: 10px 20px; border-radius: var(--bf-radius-pill);
-  min-width: 92px; flex: none;
+  /* 600 rather than the segmented buttons' 500: same size, but this is the one control on
+     the page you are meant to press first. */
+  font: 600 12px/1 var(--bf-sans);
+  padding: 7px 16px; border-radius: var(--bf-radius-pill);
+  min-width: 78px; flex: none;
 }
 .play:hover { filter: brightness(1.12); }
 .play:active { filter: brightness(0.94); }
 .seek { flex: 1 1 auto; min-width: 60px; accent-color: var(--bf-action); }
 .frame-count {
-  font-family: var(--bf-mono); font-size: 12px; color: var(--bf-text-2);
+  font-family: var(--bf-mono); font-size: 11px; color: var(--bf-text-2);
   font-variant-numeric: tabular-nums; flex: none; white-space: nowrap;
 }
 
@@ -333,22 +358,26 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
    declared because either alone leaves the control horizontal in one of the two engines,
    and a horizontal slider pinned to the right edge of the stage is 20 px wide and unusable
    rather than obviously broken. tests/stage_screenshot.mjs measures the box. */
-.volume {
-  position: absolute; z-index: 2; right: 14px; top: 50%;
+.stage-volume {
+  position: absolute; z-index: 2; right: 12px; top: 50%;
   transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  color: var(--bf-text-2);
+  /* Dimmed to chrome and up to full strength under the pointer. It sits on the pair rather
+     than on the input, so the mark and the slider cannot be at different strengths, and
+     `focus-within` covers reaching it by keyboard. */
+  opacity: 0.6; transition: opacity 0.15s ease;
+}
+.stage-volume:hover, .stage-volume:focus-within { opacity: 1; }
+.volume-icon { display: block; flex: none; }
+
+.volume {
   writing-mode: vertical-lr; direction: rtl;
   appearance: slider-vertical; -webkit-appearance: slider-vertical;
   width: 18px; height: clamp(90px, 22vh, 150px);
   accent-color: var(--bf-action);
-  cursor: pointer;
-  /* `accent-color` paints the filled half and leaves the empty half to the browser, which
-     on a dark stage is a bright white bar. There is no way to reach that track without
-     `appearance: none`, which would take the vertical orientation with it, so the whole
-     control is dimmed to chrome and comes up to full strength under the pointer. Same
-     treatment the old "drag to orbit" hint had. */
-  opacity: 0.6; transition: opacity 0.15s ease;
+  cursor: pointer; margin: 0;
 }
-.volume:hover, .volume:focus-visible { opacity: 1; }
 
 .audio-note { margin: 4px 0 0; font-size: 13px; color: var(--bf-magenta); }
 .audio-note:empty { display: none; }
