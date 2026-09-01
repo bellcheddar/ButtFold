@@ -123,3 +123,37 @@ that clock rather than its own, and a style switch keeping its place instead of 
 
 Phase 2's machine gate is met. Its human gate - does it sound right - is Marc's and is left
 open.
+
+### Phase 3: the live fold
+
+A browser now folds a real protein. Headless Chrome reaches Q 1.000 on trp-cage in 7.6 s
+and streams 152 frames into the same player the gallery uses; the stage badge says "in your
+browser" while it does, so a visitor can tell where the computation happened.
+
+The piece of design that mattered is `static/js/frames.js`: **one** frame builder, shared by
+every source. Without it the baker, the worker and the queue would each have their own
+notion of what a frame is, and the gate - byte-identical frame objects from the same
+trajectory - would have had nothing to compare. Getting to zero differences turned up three
+cross-language traps, all invisible in the artefact and all fatal to a byte comparison:
+JavaScript's `Math.round(-0.2)` is `-0` where Python's is `0`; NumPy breaks ties to even
+where `Math.round` breaks them upward, which showed up as 238 against 239 on a coordinate
+that landed on exactly 238.5; and `angstromsPerUnit` had been written rounded to six decimal
+places, which is a relative error of 3e-5 and quite enough to move a coordinate one unit. A
+ruler rounded for tidiness is not a ruler.
+
+The one thing the two paths do NOT agree on is the contact count: 806 live against 858
+baked. They sample the trajectory at slightly different times, and a contact that forms and
+breaks between two sampled frames is invisible to whichever path did not look then. Neither
+number is the true one, because "how many contacts formed" is a property of how often you
+look. Recorded in METRICS rather than smoothed over.
+
+`tools/audit_wiring.py` earned its keep twice in this phase. Its self-expiring allowance for
+`ContactTracker.js` lapsed by itself the moment `fold_worker.js` was written, exactly as
+designed. Then it correctly reported the entire live path as unreachable, because a worker
+is loaded by URL rather than imported and the import graph never reaches it - so the audit
+now treats `new Worker('...')` as an entry point too.
+
+The starting coil is committed alongside each native structure rather than computed. The
+browser cannot build it without a second implementation of the self-avoiding walk, and the
+droplet must not build it, because that would put numpy in the web layer's requirements for
+the sake of a few kilobytes of constants.

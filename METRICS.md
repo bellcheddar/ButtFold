@@ -202,6 +202,51 @@ Chrome, clicks Play as a genuine user gesture, and measures:
 | moments scheduled by the lookahead | 5 |
 | style switch keeps its place | 2.45 s -> 3.66 s, no restart |
 
+## Phase 3: a browser folds a protein
+
+2026-09-01, M1 Max, headless Chrome 152. `tests/live_fold.mjs` clicks "Fold it live" on the
+real page and measures what comes back.
+
+| | measured | gate |
+|---|---|---|
+| frames streamed | **152** | >= 100 |
+| final Q | **1.000** | >= 0.95 |
+| wall clock in the browser | 7.6 s | (native 5.2 s, so 1.46x) |
+| radius of gyration | 9.5 -> 6.9 Å, ratio 0.73 | <= 0.80, the baker's own bar |
+| contacts formed | 806, of which 19 on frame 1 (2%) | < 25% on frame 1 |
+| notes scored from the live fold | 1,084 | non-empty |
+| stage badge while it plays | "in your browser" | says where it was computed |
+
+The live fold forms 806 contacts against the baked gallery's 858 for the same protein. That
+is **not** a disagreement between the two paths: they sample the trajectory at slightly
+different times. The baker runs at stride `steps/300` and then subsamples 150 of those 301
+frames, so its frames land at 0, 13332, 26664 steps; the live path runs at stride
+`steps/150` directly, so its frames land at 0, 13333, 26666. A contact that forms and breaks
+between two sampled frames is invisible to whichever path did not look at that moment. Both
+are honest readings of the same physics; neither is the true count, because "the number of
+contacts" is a property of how often you look.
+
+What the two paths ARE identical on is the frame *object*, which is the thing the gate
+asked for:
+
+| check | result |
+|---|---|
+| frames rebuilt by `static/js/frames.js` from the baker's own coordinates | 300 (trp-cage, protein G) |
+| fields compared per frame | points, newContacts, ss, conf, rg |
+| differences | **0** |
+
+Three cross-language differences had to be found and fixed to get there, and every one of
+them was invisible in the artefact and fatal to a byte comparison:
+
+1. **Negative zero.** `Math.round(-0.2)` is `-0` in JavaScript and `0` in Python. Both write
+   `0` to JSON, so the committed file is identical either way.
+2. **Tie-breaking.** NumPy rounds half to even; `Math.round` rounds half up. Measured on
+   trp-cage frame 8, one coordinate landed on exactly 238.5, where the baker wrote 238 and
+   JavaScript produced 239.
+3. **A ruler rounded for tidiness.** `angstromsPerUnit` was written to six decimal places,
+   a relative error of about 3e-5. Invisible in every length it produces, and enough to move
+   a coordinate sitting near a rounding boundary by one unit.
+
 ## P0-4: baked payload size
 
 2026-09-01, M1 Max. `tools/bake_gallery.py`, six Gō folds, 150 frames each, 3D coordinates

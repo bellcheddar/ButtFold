@@ -54,12 +54,16 @@ class Player {
     this.styleId = 'fantasy';
     this.styles = {};
     this.scored = null;
+    this.worker = null;
+    this.liveFrames = [];
+    this.liveSupported = detectLiveSupport();
   }
 
   async boot() {
     const [THREE] = await Promise.all([import(THREE_URL), this._loadStyles()]);
     this.stage = new Stage($('stage'), THREE);
     this._wireControls();
+    this._applyLiveSupport();
     const first = document.querySelector('.card');
     await this.load(first?.dataset.foldId ?? 'trp_cage');
     requestAnimationFrame(t => this._loop(t));
@@ -98,6 +102,8 @@ class Player {
     this.index = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.stage.setResidueCount(fold.residueCount);
+    this._setSource('baked');
+    $('live-status').textContent = '';
 
     $('protein-name').textContent = fold.name;
     $('protein-sub').textContent = subtitleFor(fold);
@@ -140,6 +146,141 @@ class Player {
     if (!frame || residue < 0 || residue * 3 + 2 >= frame.points.length) return null;
     return [frame.points[3 * residue], frame.points[3 * residue + 1],
             frame.points[3 * residue + 2]];
+  }
+
+  /* Feature detection decides what the engine pill offers. PLAN section 2: the page loads
+   * and the baked gallery plays immediately, with no capability check and no compute; the
+   * live control is enabled only where it can work. A disabled pill that says why is more
+   * honest than a missing one. */
+  _applyLiveSupport() {
+    const button = document.querySelector('#engine-mode button[data-source="live"]');
+    if (!button) return;
+    if (this.liveSupported.ok) {
+      button.disabled = false;
+      button.title = 'Fold this protein in your browser, now';
+    } else {
+      button.disabled = true;
+      button.title = `Not available here: no ${this.liveSupported.missing.join(', ')}`;
+    }
+  }
+
+  /* Fold the current protein live, in a worker, streaming frames into the same player. */
+  async foldLive() {
+    if (!this.liveSupported.ok || !this.fold) return;
+    this.playing = false;
+    this.audio.stop();
+    $('play').textContent = 'Play';
+    this._setSource('live');
+
+    const response = await fetch(`/api/native/${encodeURIComponent(this.fold.id)}`);
+    if (!response.ok) throw new Error(`native ${this.fold.id}: HTTP ${response.status}`);
+    const native = await response.json();
+
+    this.worker?.terminate();
+    this.worker = new Worker('/static/js/fold_worker.js', { type: 'module' });
+    this.liveFrames = [];
+    this.frames = [];
+    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.contactsSoFar = 0;
+    $('live-status').textContent = 'starting the model';
+
+    // A fold the visitor cannot see is a fold the browser may stop. P0-2 measured Safari
+    // suspending a worker whose page is hidden, at 0% CPU, and Chrome taking 1.9x as long
+    // in a background tab. Neither is a bug ButtFold can fix, so the page says what
+    // happened instead of appearing to hang.
+    this._watchVisibility();
+
+    const began = performance.now();
+    this.worker.onmessage = (event) => {
+      const message = event.data;
+      if (message.type === 'ready') {
+        $('live-status').textContent = 'folding';
+      } else if (message.type === 'frame') {
+        this._acceptLiveFrame(message);
+      } else if (message.type === 'done') {
+        const wall = (performance.now() - began) / 1000;
+        $('live-status').textContent =
+          `folded ${message.frames} frames in ${message.seconds.toFixed(1)} s `
+          + `(${wall.toFixed(1)} s of wall clock), final Q ${message.q.toFixed(3)}`;
+        this._finishLive();
+      } else if (message.type === 'cancelled') {
+        $('live-status').textContent = `stopped after ${message.frames} frames`;
+      } else if (message.type === 'error') {
+        $('live-status').textContent = `the fold failed: ${message.message}`;
+        console.error(message.message);
+      }
+    };
+    this.worker.onerror = (e) => {
+      $('live-status').textContent = `the worker failed to start: ${e.message}`;
+    };
+
+    this.worker.postMessage({
+      type: 'fold',
+      foldId: native.id,
+      sequence: native.sequence,
+      native: native.ca.flat(),
+      start: native.coil.flat(),
+      steps: native.steps,
+      frames: 150,
+      params: native.params,
+    });
+  }
+
+  _acceptLiveFrame(message) {
+    const frame = message.frame;
+    this.frames.push({
+      points: Float32Array.from(frame.points),
+      ss: runLengthDecode(frame.ss),
+      newContacts: frame.newContacts,
+      rg: frame.rg / 10,
+      q: frame.q / 1000,
+    });
+    this.liveFrames.push(frame);
+    // Drawn as it arrives: the fold IS the show, so a slow fold that streams frames is
+    // content rather than a wait, and a progress bar over a blank stage would be the
+    // opposite of the point.
+    this._show(this.frames.length - 1);
+    $('seek').max = String(this.frames.length - 1);
+    const percent = Math.round(100 * message.step / message.steps);
+    $('live-status').textContent = `folding, ${percent}% (${this.frames.length} frames)`;
+  }
+
+  _finishLive() {
+    // The live fold becomes an ordinary fold: same frame objects, same player, same
+    // sonifier. Nothing downstream knows where the frames came from.
+    this.fold = { ...this.fold, frames: this.liveFrames };
+    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this._rescore();
+    this._show(0);
+    this.contactsSoFar = 0;
+  }
+
+  _watchVisibility() {
+    if (this._visibilityWatched) return;
+    this._visibilityWatched = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!this.worker) return;
+      if (document.hidden) {
+        this._hiddenAt = performance.now();
+        this._framesAtHide = this.frames.length;
+      } else if (this._hiddenAt) {
+        const away = (performance.now() - this._hiddenAt) / 1000;
+        const progressed = this.frames.length - this._framesAtHide;
+        if (away > 3 && progressed === 0) {
+          $('live-status').textContent =
+            `your browser paused the fold while this tab was hidden `
+            + `(${away.toFixed(0)} s, no frames); it has resumed`;
+        }
+        this._hiddenAt = null;
+      }
+    });
+  }
+
+  _setSource(source) {
+    this.source = source;
+    document.querySelectorAll('#engine-mode button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.source === source)));
+    this._updateBadge();
   }
 
   _updateBadge() {
@@ -310,6 +451,20 @@ class Player {
         this.load(card.dataset.foldId);
       });
     });
+    document.querySelectorAll('#engine-mode button').forEach(button => {
+      button.addEventListener('click', () => {
+        if (button.disabled) return;
+        if (button.dataset.source === 'live') {
+          this.foldLive().catch(err => {
+            $('live-status').textContent = `could not start: ${err.message}`;
+          });
+        } else if (button.dataset.source === 'baked') {
+          this.worker?.postMessage({ type: 'cancel' });
+          this._setSource('baked');
+          this.load(this.fold.id);
+        }
+      });
+    });
     document.querySelectorAll('#colour-mode button').forEach(button => {
       button.addEventListener('click', () => {
         document.querySelectorAll('#colour-mode button').forEach(b =>
@@ -319,6 +474,18 @@ class Player {
       });
     });
   }
+}
+
+/* What the live fold needs from the browser. Checked once, up front, and reported: a
+ * disabled control that says why is more honest than one that is simply absent. */
+export function detectLiveSupport() {
+  const missing = [];
+  if (typeof WebAssembly === 'undefined') missing.push('WebAssembly');
+  if (typeof Worker === 'undefined') missing.push('Web Workers');
+  if (typeof (window.AudioContext ?? window.webkitAudioContext) === 'undefined') {
+    missing.push('Web Audio');
+  }
+  return { ok: missing.length === 0, missing };
 }
 
 function count(text, character) {

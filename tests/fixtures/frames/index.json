@@ -1,0 +1,16 @@
+{
+ "cases": [
+  {
+   "id": "trp_cage",
+   "file": "trp_cage.json",
+   "frames": 150,
+   "residueCount": 20
+  },
+  {
+   "id": "protein_g_b1",
+   "file": "protein_g_b1.json",
+   "frames": 150,
+   "residueCount": 56
+  }
+ ]
+}

@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
 REPO = HERE.parent
 OUT = REPO / "data" / "natives"
 
@@ -38,6 +39,10 @@ PROTEINS = PHONEFOLD / "Tools/proteins.json"
 # residues and every one of them has a measured fold time in PhoneFold's METRICS.md.
 CHOSEN = ["trp_cage", "ww_domain", "villin_hp36", "protein_g_b1", "alpha3d", "ubiquitin"]
 
+# The same coil seed `tools/bake_gallery.py` uses, so a live fold starts where the gallery
+# entry beside it started and the two are comparable.
+COIL_SEED = 1
+
 
 def main() -> int:
     if not TRAJECTORIES.exists():
@@ -45,6 +50,9 @@ def main() -> int:
         return 1
     sys.path.insert(0, str(PHONEFOLD / "Tools"))
     import pftraj  # noqa: E402  (needs the path above)
+
+    from coil import random_coil  # noqa: E402  (ButtFold's own, not PhoneFold's)
+    globals()["random_coil"] = random_coil
 
     catalogue = {p["id"]: p for p in json.loads(PROTEINS.read_text())["proteins"]}
     OUT.mkdir(parents=True, exist_ok=True)
@@ -80,6 +88,18 @@ def main() -> int:
             },
             # 3 decimals: a thousandth of an Angstrom, well inside the model's meaning.
             "ca": [[round(float(v), 3) for v in row] for row in ca],
+            # The unfolded state the live fold starts from, committed rather than computed.
+            #
+            # The browser cannot build this and the droplet must not: the coil is a
+            # self-avoiding walk with rejection sampling, and reimplementing it in JS would
+            # be a second implementation of the one thing that decides where every
+            # trajectory begins. Generating it on the droplet would put numpy in the web
+            # layer's requirements for the sake of a few kilobytes of constants. So it is
+            # baked here, from the same seed the gallery was baked with, which is also what
+            # makes a live fold comparable to the gallery entry beside it.
+            "coil": [[round(float(v), 3) for v in row]
+                     for row in random_coil(len(ca), np.random.default_rng(COIL_SEED))],
+            "coilSeed": COIL_SEED,
         }
         if len(record["sequence"]) != record["residueCount"]:
             print(f"{stem}: sequence {len(record['sequence'])} != CA {record['residueCount']}",

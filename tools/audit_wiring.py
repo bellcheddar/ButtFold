@@ -40,16 +40,15 @@ STYLES = REPO / "static" / "styles"
 GALLERY = REPO / "static" / "baked" / "gallery.json"
 LINKS = REPO / "static" / "links.json"
 
-# Modules that exist and are tested before the thing that imports them is built. Each
-# entry names the file that WILL import it, and the allowance holds only while that file
-# does not exist yet: the moment the Phase 3 worker lands, this stops excusing anything and
-# the module must genuinely be imported. An allowlist that cannot expire is a place for
-# things to hide forever, which is the failure this whole tool exists to catch.
-PENDING_CONSUMERS = {
-    "ContactTracker.js": ("static/js/fold_worker.js",
-                          "Phase 3: the live fold's worker tracks contacts on frames as "
-                          "they arrive. Already ported and tested against tools/contacts.py."),
-}
+# Modules that exist and are tested before the thing that imports them is built. Each entry
+# names the file that WILL import it, and the allowance holds only while that file does not
+# exist yet: the moment its declared consumer lands, this stops excusing anything and the
+# module must genuinely be imported. An allowlist that cannot expire is a place for things
+# to hide forever, which is the failure this whole tool exists to catch.
+#
+# It has fired once already, correctly: ContactTracker.js sat here through Phase 2 and the
+# entry lapsed by itself the moment static/js/fold_worker.js was written in Phase 3.
+PENDING_CONSUMERS: dict[str, tuple[str, str]] = {}
 
 # Routes that nothing links to on purpose, each with the reason it is still reachable.
 # A route may only appear here with a justification; "unused" is not one.
@@ -100,6 +99,13 @@ def check_js_modules(problems: list[str], report: dict) -> None:
     entry_points = set()
     for template in TEMPLATES.glob("*.html"):
         for match in re.findall(r'/static/js/([A-Za-z0-9_.-]+\.js)', read(template)):
+            entry_points.add(match)
+    # A worker is a second entry point, and it is loaded by URL rather than imported, so the
+    # import graph alone never reaches it. Missing this made the audit report the whole live
+    # path - the worker and everything it pulls in - as dead code.
+    for path in sorted(JS_DIR.glob("*.js")):
+        for match in re.findall(r"""new\s+Worker\(\s*['"][^'"]*?/?([A-Za-z0-9_.-]+\.js)['"]""",
+                                read(path)):
             entry_points.add(match)
 
     # Walk the import graph from the entry points, so a module imported only by another

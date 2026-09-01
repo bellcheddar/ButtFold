@@ -238,6 +238,8 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 }
 .audio-note { margin: 4px 0 0; font-size: 13px; color: var(--bf-magenta); }
 .audio-note:empty { display: none; }
+.live-status { margin: 4px 0 0; font: 500 12px/1.5 var(--bf-mono); color: var(--bf-cyan); }
+.live-status:empty { display: none; }
 
 /* ---------------------------------------------------------------- gallery ------------- */
 

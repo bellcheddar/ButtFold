@@ -60,8 +60,9 @@
       <span class="label">Engine</span>
       <div class="segmented" id="engine-mode" role="group" aria-label="Frame source">
         <button type="button" data-source="baked" aria-pressed="true">Gallery</button>
-        <!-- Phase 3 and Phase 4 enable these. Disabled rather than absent, so the page
-             says what is coming instead of hiding it. -->
+        <!-- "Fold it live" is enabled by feature detection at boot; the queue arrives in
+             Phase 4. Disabled rather than absent, so the page says what is coming instead
+             of hiding it, and a disabled control carries the reason in its title. -->
         <button type="button" data-source="live" aria-pressed="false" disabled>Fold it live</button>
         <button type="button" data-source="queued" aria-pressed="false" disabled>Queued</button>
       </div>
@@ -109,6 +110,7 @@
            aria-label="Volume">
   </div>
   <p class="score-summary" id="score-summary"></p>
+  <p class="live-status" id="live-status"></p>
   <p class="audio-note" id="audio-note"></p>
 
   <div class="section-head">

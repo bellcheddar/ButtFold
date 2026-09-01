@@ -99,6 +99,50 @@ def api_fold(fold_id: str):
     return response
 
 
+# The residue cap architecture B ships with, measured in P0-1: ubiquitin folds on the
+# droplet in 7 min 07 s, inside the 15 minute rule. Declared here so the page, the queue and
+# the tests all read one number.
+LIVE_RESIDUE_CAP = 76
+
+# The Gō parameters, in one place. The baker, the droplet queue and the browser must all
+# fold the same protein the same way, or a live fold is not comparable to the gallery entry
+# beside it.
+FOLD_PARAMS = {
+    "kT": 1.0, "kTFinal": 0.6, "dt": 0.005, "gamma": 1.0,
+    "cutoff": 8.0, "minSep": 3, "seed": 1, "stepsPerResidue": 100_000,
+}
+
+
+@app.route("/api/native/<protein_id>")
+def api_native(protein_id: str):
+    """What the browser needs to fold this protein itself: the native state and the coil.
+
+    Both are committed data, not computed here. The droplet does no folding on this path at
+    all: architecture C is the visitor's own CPU, and this route is a static file with a
+    guard on it.
+    """
+    candidate = (REPO / "data" / "natives" / f"{protein_id}.json").resolve()
+    natives = (REPO / "data" / "natives").resolve()
+    if not candidate.is_relative_to(natives) or not candidate.exists():
+        return jsonify({"error": f"no native structure for {protein_id!r}"}), 404
+    record = json.loads(candidate.read_text())
+    payload = {
+        "id": record["id"],
+        "name": record["name"],
+        "sequence": record["sequence"],
+        "residueCount": record["residueCount"],
+        "ca": record["ca"],
+        "coil": record["coil"],
+        "coilSeed": record["coilSeed"],
+        "params": FOLD_PARAMS,
+        "steps": FOLD_PARAMS["stepsPerResidue"] * record["residueCount"],
+        "residueCap": LIVE_RESIDUE_CAP,
+    }
+    response = jsonify(payload)
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
+
 @app.route("/healthz")
 def healthz():
     """200 and the deployed version, for the launcher's dot and for deploy.sh.
@@ -111,6 +155,7 @@ def healthz():
         "status": "ok",
         "version": VERSION,
         "folds": len(store.index()),
+        "residueCap": LIVE_RESIDUE_CAP,
     })
 
 

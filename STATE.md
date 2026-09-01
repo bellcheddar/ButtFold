@@ -1,6 +1,6 @@
 # ButtFold: state
 
-Current phase: **Phase 3, WASM live fold** (Phase 2's machine gate is met; its HUMAN gate awaits Marc, as do two Phase 0 rows)
+Current phase: **Phase 4, the queue** (Phases 0 to 3 have their machine gates met; Phase 2's HUMAN gate and two Phase 0 rows await Marc)
 
 The task list below is the execution contract from PLAN.md section 11. Status is one of
 `todo` / `doing` / `blocked` / `done`. Phases advance on machine-verifiable gates only;
@@ -107,18 +107,30 @@ agent does not mark this met. Run the app (`python3 app.py`, then
 
 ## Phase 3: WASM live fold
 
-**doing.** Gate: a browser folds trp-cage.
+**done.** Gate: a browser folds trp-cage.
 
-Already done in Phase 0, ahead of schedule:
+| # | Task | Status |
+|---|---|---|
+| 3.1 | `native/wasm_api.c`, the streaming module, pinned emsdk build | done (Phase 0) |
+| 3.2 | `static/js/frames.js`: one frame builder, shared by every source | done |
+| 3.3 | `static/js/fold_worker.js`: the module in a worker, with contacts and P-SEA | done |
+| 3.4 | `/api/native/<id>`: native state and starting coil as committed data | done |
+| 3.5 | Live path through the same player, stage badge, streaming as it folds | done |
+| 3.6 | Feature detection; the pill says why when it cannot run | done |
+| 3.7 | Tab-visibility handling for the P0-2 suspension finding | done |
+| 3.8 | `tests/live_parity.test.mjs`, `tests/live_fold.mjs`, both in the gate | done |
 
-- `native/wasm_api.c` and the streaming module build (`tools/build_wasm.sh module`);
-- **P0-3c: the module reproduces the CLI bitwise**, all 101 frames and 6,060 coordinate
-  components, which is one of this phase's exit criteria met early;
-- forces agree with the native build to 2.9e-15 relative, against a 1e-9 bar.
+**Exit gate (machine): all met.**
 
-Still to do: the worker, the live path through the same player, feature detection, and the
-handling that P0-2 forced into scope - **a browser suspends a fold it cannot see**, so a
-visitor who switches tabs must not silently stop folding.
+- headless Chrome folds trp-cage live to **Q 1.000** (bar 0.95) and streams **152 frames**
+  (bar 100), collapsing Rg 9.5 to 6.9 Å;
+- step-0 forces match the native build to 2.9e-15 relative, against a 1e-9 bar (P0-3);
+- the live path and the baked path produce **byte-identical frame objects** for the same
+  trajectory input: 300 frames, five fields each, zero differences.
+
+The live fold is not required to produce the same contact COUNT as the bake and does not:
+806 against 858, because the two sample the trajectory at slightly different times. That is
+a property of how often you look, not a disagreement, and METRICS says so.
 
 ## Phase 3: WASM live fold
 
@@ -126,7 +138,7 @@ todo. Gate: a browser folds trp-cage.
 
 ## Phase 4: the queue
 
-todo. Gate: caps hold and the cache converges.
+**doing.** Gate: caps hold and the cache converges. The residue cap is **76**, set by P0-1.
 
 ## Phase 5: shop window, honesty, polish
 

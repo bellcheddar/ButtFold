@@ -231,6 +231,11 @@ def bake(protein_id: str) -> dict:
     centred = [f - f.mean(axis=0) for f in frames]
     half = max(float(np.abs(c).max()) for c in centred)
     scale = QUANTISED_RANGE / max(half, 1e-6)
+    # The ruler, recorded. Quantised units are unitless by construction, and anything that
+    # wants real lengths back - the live path's scale continuity, the spatial audio, any
+    # future export - would otherwise have to reconstruct it from a frame's Rg, which is a
+    # derived quantity and lossy. One float per fold.
+    angstroms_per_unit = 1.0 / scale
 
     baked_frames = []
     for index, (frame, contacts) in enumerate(zip(centred, per_frame_contacts)):
@@ -279,8 +284,64 @@ def bake(protein_id: str) -> dict:
         "listeningNote": record.get("listeningNote"),
         "referencePdb": record.get("referencePdb"),
         "quality": quality,
+        # Full precision, deliberately NOT rounded for tidiness. This is the ruler: anything
+        # that multiplies quantised units back to Angstroms uses it, and the live-parity test
+        # rebuilds every frame through it. Rounded to six decimals it carries a relative
+        # error of about 3e-5, which is invisible in every length it produces and is enough
+        # to move a coordinate sitting near a rounding boundary by one unit - measured, on
+        # trp-cage frame 8, coordinate 50.
+        "angstromsPerUnit": angstroms_per_unit,
+        # What the live path needs to pick a scale before it has seen the whole trajectory:
+        # how much wider the widest frame is than the first one. Measured across the launch
+        # gallery it runs 1.05 to 1.39, so a live fold that scales from its own starting
+        # coil and then grows monotonically never has to shrink by much, and never shrinks
+        # at all in the common case.
+        "widestFrameRatio": round(
+            QUANTISED_RANGE / max(float(np.abs(centred[0]).max()) * scale, 1e-6), 3),
         "frames": baked_frames,
     }
+
+
+def write_frame_fixtures(fold_ids: list[str]) -> None:
+    """The exact Angstrom coordinates the baker built its frames from, for the JS test.
+
+    `tests/live_parity.test.mjs` has to compare `static/js/frames.js` against this baker on
+    the SAME input, and the obvious way to get that input - multiplying the committed
+    quantised integers back by the recorded scale - is lossy by half a unit, which is about
+    0.008 A on trp-cage. That is far below anything a viewer sees and it is not below the
+    8.0 A contact cutoff: a pair sitting within 0.008 A of the threshold flips, and the test
+    reported a difference between two implementations that agree. Measured, on trp-cage
+    frame 16, contact (4, 10).
+
+    So the fixture carries the coordinates themselves, as the raw float32 the C emitted,
+    base64 encoded. Exact, and about a third the size of the same numbers as JSON text.
+    """
+    import base64
+
+    out = REPO / "tests" / "fixtures" / "frames"
+    out.mkdir(parents=True, exist_ok=True)
+    index = []
+    for protein_id in fold_ids:
+        record, ca, _wall = fold(protein_id)
+        frames = list(ca)
+        if len(frames) > FRAME_CAP:
+            picked = np.linspace(0, len(frames) - 1, FRAME_CAP).round().astype(int)
+            frames = [frames[i] for i in sorted(set(picked.tolist()))]
+        flat = np.asarray(frames, dtype=np.float32).reshape(len(frames), -1)
+        payload = {
+            "id": protein_id,
+            "residueCount": int(record["residueCount"]),
+            "frameCount": len(frames),
+            "encoding": "base64 little-endian float32, xyzxyz per frame, in Angstroms",
+            "frames": [base64.b64encode(row.tobytes()).decode("ascii") for row in flat],
+        }
+        path = out / f"{protein_id}.json"
+        path.write_text(json.dumps(payload, separators=(",", ":")))
+        index.append({"id": protein_id, "file": f"{protein_id}.json",
+                      "frames": len(frames), "residueCount": payload["residueCount"]})
+        print(f"{protein_id:14s} {len(frames)} frames, {path.stat().st_size / 1024:.0f} kB")
+    (out / "index.json").write_text(json.dumps({"cases": index}, indent=1))
+    print(f"\nwrote {len(index)} frame fixtures to {out.relative_to(REPO)}")
 
 
 def main() -> int:
@@ -288,6 +349,8 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=OUTPUT)
     ap.add_argument("--only", type=str, default=None,
                     help="comma-separated ids, for trying one without baking all")
+    ap.add_argument("--frame-fixtures", action="store_true",
+                    help="also write tests/fixtures/frames/ for the JS parity test")
     args = ap.parse_args()
 
     chosen = args.only.split(",") if args.only else CHOSEN
@@ -311,6 +374,9 @@ def main() -> int:
     shown = out.relative_to(REPO) if out.is_relative_to(REPO) else out
     print(f"\nwrote {shown}  {size / 1024:.0f} kB, {len(folds)} folds")
     print(f"P0-4: baked payload {size / 1024 / 1024:.2f} MB against a 4 MB budget")
+    if args.frame_fixtures:
+        print()
+        write_frame_fixtures(["trp_cage", "protein_g_b1"])
     return 0
 
 
