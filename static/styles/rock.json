@@ -1,0 +1,45 @@
+{
+  "id": "rock",
+  "name": "Rock",
+  "summary": "Aeolian, power chords on helix formation, driving eighths. Drive is on every voice the contacts touch, so a densely packed core is a dirtier sound.",
+  "root": 52,
+  "mode": "aeolian",
+  "tempoSlow": 96,
+  "tempoFast": 168,
+  "swing": 0.0,
+  "voicings": [[0, 4], [0, 4, 7], [0, 3, 4], [0, 4, 6]],
+  "progression": [0, 5, 6, 4, 0],
+  "octaveShiftResidues": [],
+  "voices": {
+    "pad": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.25, "decay": 0.4, "sustain": 0.70, "release": 0.9,
+      "detuneCents": 12, "drive": 0.45, "gain": 0.20
+    },
+    "arpeggio": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.003, "decay": 0.16, "sustain": 0.0, "release": 0.14,
+      "detuneCents": 8, "drive": 0.55, "gain": 0.26
+    },
+    "contact": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.002, "decay": 0.30, "sustain": 0.0, "release": 0.25,
+      "detuneCents": 10, "drive": 0.70, "gain": 0.30
+    },
+    "bass": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.006, "decay": 0.35, "sustain": 0.55, "release": 0.30,
+      "drive": 0.35, "gain": 0.42
+    },
+    "rhythm": {
+      "waveform": "square",
+      "harmonics": [],
+      "attack": 0.001, "decay": 0.09, "sustain": 0.0, "release": 0.07,
+      "drive": 0.30, "gain": 0.14
+    }
+  }
+}

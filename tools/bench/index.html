@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ButtFold P0-2: WASM fold speed</title>
+<!--
+  Experiment P0-2, PLAN.md section 3. Not part of the app: a measurement harness that runs
+  the shipped module and reports wall seconds per browser.
+
+  Deliberately plain: no framework, no build step, no styling beyond legibility, so that
+  what is being timed is the fold and not a page. The fold runs in a Web Worker, which is
+  both what the app does and the only way this measurement is trustworthy: on the main
+  thread, Safari suspends the tab the moment its window is occluded, and a benchmark that
+  never finishes is indistinguishable from a browser that cannot run the module at all.
+
+  Add ?auto=1 to start on load and print a JSON line to the console, which is how the
+  headless Chrome run collects its numbers. Add ?proteins=trp_cage to shorten it.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { background: #0B0A1F; color: #B6BFD0; font: 15px/1.5 ui-sans-serif, system-ui, sans-serif;
+         margin: 0; padding: 24px; max-width: 760px; }
+  h1 { font-size: 20px; color: #fff; margin: 0 0 4px; }
+  p.sub { color: #6B7C93; margin: 0 0 20px; }
+  button { background: #2B5CE6; color: #fff; border: 0; border-radius: 8px;
+           padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px;
+          font: 13px/1.6 ui-monospace, "Roboto Mono", monospace; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #181432; }
+  th { color: #6B7C93; font-weight: 500; }
+  td.n { text-align: right; }
+  #ua { color: #6B7C93; font-size: 12px; margin-top: 20px; word-break: break-all; }
+  #json { width: 100%; height: 140px; margin-top: 12px; background: #05040E; color: #22E5FF;
+          border: 1px solid #181432; border-radius: 8px; padding: 10px;
+          font: 12px/1.5 ui-monospace, monospace; }
+  .status { color: #FCB900; }
+</style>
+</head>
+<body>
+<h1>ButtFold P0-2: WASM fold speed</h1>
+<p class="sub">Runs the shipped G&#333; module in this browser and reports wall seconds.
+Nothing is uploaded; copy the JSON out at the end.</p>
+
+<button id="go">Run the benchmark</button>
+<span class="status" id="status"></span>
+
+<table id="results">
+  <thead><tr><th>protein</th><th class="n">residues</th><th class="n">steps</th>
+  <th class="n">seconds</th><th class="n">steps/s</th><th class="n">Q</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<textarea id="json" readonly placeholder="results appear here as JSON"></textarea>
+<!-- The same payload as text content, because a headless --dump-dom serialises the DOM and
+     a textarea's *value* set from JS is not part of it. -->
+<pre id="payload" hidden></pre>
+<div id="ua"></div>
+
+<!-- A classic script, before the module, so that a browser which cannot even PARSE the
+     module still reports why. The ES-module import failure that cost a Chrome run was
+     invisible from outside the page; a benchmark that fails silently is worse than one
+     that fails loudly, because silence reads as "too slow to finish". -->
+<script>
+  function reportFailure(what, detail) {
+    document.getElementById('status').textContent = ` FAILED: ${what}: ${detail}`;
+    try {
+      navigator.sendBeacon('/p02', new Blob([JSON.stringify({
+        experiment: 'P0-2', userAgent: navigator.userAgent, date: new Date().toISOString(),
+        results: [{ id: 'load', error: `${what}: ${detail}` }],
+      })], { type: 'application/json' }));
+    } catch (e) { /* nothing left to try */ }
+  }
+  window.addEventListener('error', e =>
+    reportFailure('error', e.message || String(e.error)), true);
+  window.addEventListener('unhandledrejection', e =>
+    reportFailure('unhandled rejection', String(e.reason)));
+  // Feature detection reported up front: this is the decision P0-2 exists to inform.
+  window.addEventListener('DOMContentLoaded', () => {
+    const missing = [];
+    if (typeof WebAssembly === 'undefined') missing.push('WebAssembly');
+    if (typeof Worker === 'undefined') missing.push('Worker');
+    if (typeof (window.AudioContext || window.webkitAudioContext) === 'undefined')
+      missing.push('AudioContext');
+    document.getElementById('ua').textContent =
+      navigator.userAgent + (missing.length ? `  MISSING: ${missing.join(', ')}` : '');
+    if (missing.length) reportFailure('missing capability', missing.join(', '));
+  });
+</script>
+
+<script type="module">
+const params = new URLSearchParams(location.search);
+const ONLY = params.get('proteins');
+const AUTO = params.get('auto') === '1';
+
+// The two P0-2 proteins, at the app's real step budget of 100000 per residue. A shorter run
+// would be a faster measurement of something the app never does.
+const PROTEINS = (ONLY ? ONLY.split(',') : ['trp_cage', 'protein_g_b1']);
+const PARAMS = { kT: 1.0, kTFinal: 0.6, dt: 0.005, gamma: 1.0, cutoff: 8.0, minSep: 3, seed: 1 };
+const STEPS_PER_RESIDUE = 100_000;
+// Frames are posted at this cadence, so the cost of postMessage is inside the measured
+// time exactly as it will be in the app. Timing the fold with the messaging removed would
+// measure a program ButtFold never runs.
+const FRAMES = 300;
+
+const status = document.getElementById('status');
+const tbody = document.querySelector('#results tbody');
+
+async function loadNative(id) {
+  const r = await fetch(`../../data/natives/${id}.json`);
+  if (!r.ok) throw new Error(`no native for ${id}: HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadCoil(id) {
+  // The same seed-1 coil the native and droplet runs start from, written by tools/coil.py
+  // and served here as a plain xyz. Generating a coil in JS would be a second
+  // implementation of the walk and would silently start the fold somewhere else.
+  const r = await fetch(`../../build/xyz/${id}.start.seed1.xyz`);
+  if (!r.ok) throw new Error(`no coil for ${id}: run tools/coil.py ${id}`);
+  return Float64Array.from((await r.text()).trim().split('\n')
+    .flatMap(line => line.trim().split(/\s+/).map(Number)));
+}
+
+function benchmark(worker, id, record, native, start) {
+  const n = record.residueCount;
+  const steps = STEPS_PER_RESIDUE * n;
+  const stride = Math.max(Math.floor(steps / FRAMES), 1);
+  return new Promise((resolve, reject) => {
+    let frames = 0;
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'frame') {
+        frames++;
+        if (frames % 30 === 0) {
+          status.textContent = ` ${id}: ${Math.round(100 * m.step / steps)}%`;
+        }
+      } else if (m.type === 'done') {
+        resolve({ id, name: record.name, residues: n, steps,
+                  seconds: +m.seconds.toFixed(2),
+                  stepsPerSecond: Math.round(steps / m.seconds),
+                  q: +m.q.toFixed(3), rg: +m.rg.toFixed(2), frames: m.frames });
+      } else if (m.type === 'error') {
+        reject(new Error(m.message));
+      }
+    };
+    worker.onerror = (e) => reject(new Error(e.message || 'worker failed to start'));
+    worker.postMessage({ type: 'fold', id, native, start, n, steps, stride, params: PARAMS },
+                       [native.buffer, start.buffer]);
+  });
+}
+
+async function runAll() {
+  document.getElementById('go').disabled = true;
+  const rows = [];
+  for (const id of PROTEINS) {
+    let worker = null;
+    try {
+      const record = await loadNative(id);
+      const native = Float64Array.from(record.ca.flat());
+      const start = await loadCoil(id);
+      // One worker per protein, torn down after: a fresh module each time, so protein two
+      // is not measured on a heap that protein one grew.
+      worker = new Worker('./fold_worker.mjs', { type: 'module' });
+      const row = await benchmark(worker, id, record, native, start);
+      rows.push(row);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${row.name}</td><td class="n">${row.residues}</td>` +
+        `<td class="n">${row.steps.toLocaleString()}</td>` +
+        `<td class="n">${row.seconds.toFixed(2)}</td>` +
+        `<td class="n">${row.stepsPerSecond.toLocaleString()}</td>` +
+        `<td class="n">${row.q.toFixed(3)}</td>`;
+      tbody.appendChild(tr);
+    } catch (err) {
+      rows.push({ id, error: String(err) });
+      status.textContent = ` ${id}: ${err}`;
+    } finally {
+      worker?.terminate();
+    }
+  }
+  const payload = {
+    experiment: 'P0-2',
+    harness: 'web-worker',
+    userAgent: navigator.userAgent,
+    hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+    date: new Date().toISOString(),
+    results: rows,
+  };
+  document.getElementById('json').value = JSON.stringify(payload, null, 1);
+  document.getElementById('payload').textContent = JSON.stringify(payload);
+  console.log('BUTTFOLD_P02 ' + JSON.stringify(payload));
+
+  // Post the result back to tools/bench/serve.py, which files it under build/p0/p02/.
+  // This is how a phone's number reaches the repo, and how a headless run signals that it
+  // has actually finished rather than merely been snapshotted mid-fold.
+  try {
+    const r = await fetch('/p02', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    status.textContent = r.ok ? ' done, result saved' : ` done, save failed: HTTP ${r.status}`;
+  } catch (err) {
+    status.textContent = ` done, save failed: ${err}. Copy the JSON below by hand.`;
+  }
+  document.title = 'P0-2 done';
+  window.__buttfoldP02 = payload;
+  document.getElementById('go').disabled = false;
+}
+
+document.getElementById('go').addEventListener('click', runAll);
+if (AUTO) runAll();
+</script>
+</body>
+</html>

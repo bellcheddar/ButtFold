@@ -1,0 +1,45 @@
+{
+  "id": "fantasy",
+  "name": "Fantasy",
+  "summary": "Minor key, rapid arpeggiated figuration and stacked fourths. The default: it makes a fold sound like something happening rather than something being measured.",
+  "root": 57,
+  "mode": "minor",
+  "tempoSlow": 66,
+  "tempoFast": 132,
+  "swing": 0.0,
+  "voicings": [[0, 3, 6], [0, 2, 4], [0, 2, 4, 6], [0, 3, 5]],
+  "progression": [0, 5, 2, 6, 3, 0],
+  "octaveShiftResidues": ["R", "K", "D", "E"],
+  "voices": {
+    "pad": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.45, 0.25, 0.12, 0.06],
+      "attack": 0.9, "decay": 0.6, "sustain": 0.75, "release": 1.8,
+      "detuneCents": 7, "fmRatio": 2, "fmIndex": 1, "gain": 0.30
+    },
+    "arpeggio": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.30, 0.14],
+      "attack": 0.004, "decay": 0.20, "sustain": 0.0, "release": 0.22,
+      "detuneCents": 3, "fmRatio": 2, "fmIndex": 1, "gain": 0.34
+    },
+    "contact": {
+      "waveform": "fm",
+      "harmonics": [],
+      "attack": 0.002, "decay": 0.55, "sustain": 0.0, "release": 0.55,
+      "detuneCents": 0, "fmRatio": 3.5, "fmIndex": 2.4, "gain": 0.40
+    },
+    "bass": {
+      "waveform": "sine",
+      "harmonics": [1.0, 0.22, 0.08],
+      "attack": 0.012, "decay": 0.5, "sustain": 0.55, "release": 0.5,
+      "detuneCents": 0, "fmRatio": 2, "fmIndex": 1, "gain": 0.42
+    },
+    "rhythm": {
+      "waveform": "square",
+      "harmonics": [],
+      "attack": 0.002, "decay": 0.10, "sustain": 0.0, "release": 0.09,
+      "detuneCents": 0, "fmRatio": 2, "fmIndex": 1, "gain": 0.16
+    }
+  }
+}

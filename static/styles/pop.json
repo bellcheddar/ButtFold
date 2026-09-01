@@ -1,0 +1,45 @@
+{
+  "id": "pop",
+  "name": "Pop",
+  "summary": "Major, one four-chord loop the whole way, bright plucks over a soft pad. The cadence on convergence is the drop.",
+  "root": 60,
+  "mode": "major",
+  "tempoSlow": 90,
+  "tempoFast": 128,
+  "swing": 0.0,
+  "voicings": [[0, 2, 4], [0, 2, 4, 6], [0, 2, 4, 7], [0, 3, 4]],
+  "progression": [0, 4, 5, 3, 0],
+  "octaveShiftResidues": [],
+  "voices": {
+    "pad": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.38, 0.16, 0.06],
+      "attack": 0.7, "decay": 0.6, "sustain": 0.72, "release": 1.4,
+      "detuneCents": 9, "gain": 0.26
+    },
+    "arpeggio": {
+      "waveform": "sine",
+      "harmonics": [1.0, 0.62, 0.34, 0.16, 0.07],
+      "attack": 0.002, "decay": 0.16, "sustain": 0.0, "release": 0.18,
+      "detuneCents": 5, "gain": 0.34
+    },
+    "contact": {
+      "waveform": "fm",
+      "harmonics": [],
+      "attack": 0.001, "decay": 0.28, "sustain": 0.0, "release": 0.30,
+      "fmRatio": 2.0, "fmIndex": 1.6, "gain": 0.36
+    },
+    "bass": {
+      "waveform": "sine",
+      "harmonics": [1.0, 0.30, 0.10],
+      "attack": 0.008, "decay": 0.40, "sustain": 0.60, "release": 0.35,
+      "drive": 0.12, "gain": 0.44
+    },
+    "rhythm": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.8, 0.6, 0.45, 0.3],
+      "attack": 0.001, "decay": 0.08, "sustain": 0.0, "release": 0.06,
+      "gain": 0.15
+    }
+  }
+}

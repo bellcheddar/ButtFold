@@ -1,0 +1,47 @@
+{
+  "id": "surf",
+  "name": "Surf",
+  "summary": "Phrygian against Mixolydian, tremolo picking and a wet spring twang. Nothing else in this space sounds like it, which is the point.",
+  "root": 52,
+  "mode": "phrygian",
+  "tempoSlow": 104,
+  "tempoFast": 172,
+  "swing": 0.1,
+  "voicings": [[0, 2, 4], [0, 4], [0, 1, 4], [0, 2, 4, 6]],
+  "progression": [0, 1, 0, 4, 0],
+  "octaveShiftResidues": [],
+  "voices": {
+    "pad": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.45, 0.22, 0.10],
+      "attack": 0.5, "decay": 0.5, "sustain": 0.62, "release": 1.6,
+      "detuneCents": 14, "tremoloHz": 4.5, "tremoloDepth": 0.35, "gain": 0.24
+    },
+    "arpeggio": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.003, "decay": 0.22, "sustain": 0.0, "release": 0.30,
+      "detuneCents": 6, "drive": 0.25, "tremoloHz": 7.5, "tremoloDepth": 0.5,
+      "gain": 0.28
+    },
+    "contact": {
+      "waveform": "sawtooth",
+      "harmonics": [],
+      "attack": 0.002, "decay": 0.45, "sustain": 0.0, "release": 0.5,
+      "detuneCents": 9, "drive": 0.35, "tremoloHz": 9.0, "tremoloDepth": 0.45,
+      "gain": 0.30
+    },
+    "bass": {
+      "waveform": "triangle",
+      "harmonics": [1.0, 0.40, 0.16, 0.06],
+      "attack": 0.006, "decay": 0.40, "sustain": 0.50, "release": 0.45,
+      "drive": 0.20, "gain": 0.44
+    },
+    "rhythm": {
+      "waveform": "square",
+      "harmonics": [],
+      "attack": 0.001, "decay": 0.10, "sustain": 0.0, "release": 0.10,
+      "drive": 0.15, "tremoloHz": 11.0, "tremoloDepth": 0.4, "gain": 0.13
+    }
+  }
+}
