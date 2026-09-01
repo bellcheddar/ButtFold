@@ -48,6 +48,10 @@ if curl -sf -o /dev/null "${BUTTFOLD_URL:-http://127.0.0.1:8007/}healthz" 2>/dev
   # broken and which no unit test could have caught.
   run "drag, zoom and reframe reach the camera" \
       "$NODE" tests/stage_drag.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
+  # The only gate that runs with a warm cache. Every other one starts from a fresh profile,
+  # which is exactly why the stale-module bug reached a real browser.
+  run "a returning visitor gets this build" \
+      "$NODE" tests/cache_staleness.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
   run "sound reaches the audio device" \
       "$NODE" tests/audio_smoke.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
   run "a browser folds trp-cage live" \

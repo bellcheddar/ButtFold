@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="/static/buttfold.css?v={{ assets.css }}">
+<link rel="stylesheet" href="/static/v-{{ build }}/buttfold.css">
 </head>
 <body>
 
@@ -208,6 +208,10 @@
   </div>
 </footer>
 
-<script type="module" src="/static/js/player.js?v={{ assets.player }}"></script>
+<!-- The version is a path segment, not a query string. An ES module's relative imports
+     resolve against ITS url, so a query on the entry point leaves every module it imports
+     unversioned - and those are served immutable for a year. See build_version(). -->
+<script type="module" src="/static/v-{{ build }}/js/player.js"
+        data-static-base="/static/v-{{ build }}"></script>
 </body>
 </html>

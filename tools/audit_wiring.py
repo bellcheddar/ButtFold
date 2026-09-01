@@ -98,14 +98,27 @@ def check_js_modules(problems: list[str], report: dict) -> None:
     modules = sorted(p.name for p in JS_DIR.glob("*.js")) if JS_DIR.exists() else []
     entry_points = set()
     for template in TEMPLATES.glob("*.html"):
-        for match in re.findall(r'/static/js/([A-Za-z0-9_.-]+\.js)', read(template)):
+        # `/static/v-<build>/js/player.js` as well as the plain form: the front end is
+        # versioned by a path segment so that an ES module's relative imports inherit the
+        # version. Without the optional segment here the audit reported the entire module
+        # graph as dead code the moment that landed.
+        # The version segment is a Jinja placeholder in the template source
+        # (`/static/v-{{ build }}/js/...`), not a rendered hash, so the pattern has to
+        # accept anything up to the next slash. Matching only `[0-9a-f]+` here found
+        # nothing and reported the whole module graph as dead code.
+        for match in re.findall(r'/static/(?:v-[^/]+/)?js/([A-Za-z0-9_.-]+\.js)',
+                                read(template)):
             entry_points.add(match)
     # A worker is a second entry point, and it is loaded by URL rather than imported, so the
     # import graph alone never reaches it. Missing this made the audit report the whole live
     # path - the worker and everything it pulls in - as dead code.
     for path in sorted(JS_DIR.glob("*.js")):
-        for match in re.findall(r"""new\s+Worker\(\s*['"][^'"]*?/?([A-Za-z0-9_.-]+\.js)['"]""",
-                                read(path)):
+        # Backticks too: the worker's URL is a template literal now, because it carries the
+        # build version. A regex that only knew about quotes reported the live fold's whole
+        # module graph as unreachable.
+        for match in re.findall(
+                r"""new\s+Worker\(\s*[`'"][^`'"]*?/([A-Za-z0-9_.-]+\.js)[`'"]""",
+                read(path)):
             entry_points.add(match)
 
     # Walk the import graph from the entry points, so a module imported only by another

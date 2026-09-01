@@ -105,6 +105,37 @@ def cache_key(protein_id: str, steps: int, kt: float, kt_final: float, seed: int
     return hashlib.sha256(material.encode()).hexdigest()[:16]
 
 
+def build_version(root: Path) -> str:
+    """One hash over everything under `static/`, naming this build of the front end.
+
+    It goes in the URL **path**, as `/static/v-<hash>/...`, and not in a query string. That
+    is the whole point, and it is worth being explicit about why, because getting it wrong
+    shipped a stale renderer to a real browser:
+
+    An ES module's `import './stage.js'` resolves against the importing module's own URL.
+    Versioning only the entry point - `player.js?v=...` - therefore leaves every module it
+    imports on a bare, unversioned URL. Those were served `immutable, max-age=31536000`, so a
+    browser that had them would not re-fetch them for a year, and would not even ask. The
+    page got a new `player.js` and a year-old `stage.js`, which is a new cartoon renderer
+    calling into the old round-tube one.
+
+    A version segment in the path fixes it without a build step or a bundler, because the
+    relative imports inherit it: from `/static/v-abc/js/player.js`, `./stage.js` resolves to
+    `/static/v-abc/js/stage.js`, and `../wasm/go_model.mjs` to `/static/v-abc/wasm/...`. Every
+    URL changes together, so `immutable` becomes true rather than merely asserted.
+
+    `static/cache/` is excluded: it is architecture B's results, it grows while the process
+    runs, and it is not part of the front end.
+    """
+    digest = hashlib.sha256()
+    for path in sorted((root / "static").rglob("*")):
+        if not path.is_file() or "cache" in path.relative_to(root).parts:
+            continue
+        digest.update(str(path.relative_to(root)).encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
 def content_hash(path: Path) -> str:
     """Eight hex characters of a file's SHA-256, for `?v=` in the template.
 

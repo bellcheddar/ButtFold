@@ -121,20 +121,6 @@ def test_html_is_not_heuristically_cacheable(client):
     assert response.headers["Cache-Control"] == "no-cache, must-revalidate"
 
 
-def test_a_fold_is_long_cached(client):
-    response = client.get("/api/fold/trp_cage")
-    assert "max-age=31536000" in response.headers["Cache-Control"]
-    assert "immutable" in response.headers["Cache-Control"]
-
-
-def test_asset_urls_carry_a_content_hash(client):
-    page = client.get("/").get_data(as_text=True)
-    for asset in ["buttfold.css", "player.js"]:
-        match = re.search(rf'{re.escape(asset)}\?v=([0-9a-f]+)', page)
-        assert match, f"{asset} is referenced without a ?v= content hash"
-        assert len(match.group(1)) == 8, f"{asset} hash looks wrong: {match.group(1)}"
-
-
 def test_the_hash_changes_with_content_and_not_with_mtime(tmp_path):
     """Content, not mtime: a redeploy rewrites every mtime whether or not the bytes
     changed, which busts every cache on every deploy and teaches browsers nothing."""
@@ -265,3 +251,118 @@ def test_q_rises_and_rg_falls_across_every_trajectory():
         assert frames[-1]["rg"] < frames[0]["rg"], f"{fold['id']}: Rg did not fall"
         assert frames[-1]["q"] >= 900, \
             f"{fold['id']}: final Q is {frames[-1]['q'] / 1000}, below 0.9"
+
+
+# ------------------------------------------------------------------ caching, the rule ---
+#
+# The rule, stated once: **anything a browser may keep forever must carry a version in its
+# URL, and anything that cannot must be revalidated.** Breaking it is not visible in
+# development, in CI, or in any headless browser, because all of those start with an empty
+# cache. It is visible only to somebody who visited before, which is the worst possible
+# audience to find it.
+#
+# What shipped: the page versioned its entry point as `player.js?v=<hash>` and served every
+# module that entry point imports at a bare URL with `immutable, max-age=31536000`. An ES
+# module's `import './stage.js'` resolves against the importing module's own URL, so those
+# never carried the version. A returning visitor got the new player and a year-old renderer,
+# and their browser never asked the server whether anything had changed.
+
+def test_the_page_loads_its_front_end_from_a_versioned_path(client):
+    page = client.get("/").get_data(as_text=True)
+    match = re.search(r'src="(/static/v-[0-9a-f]+/js/player\.js)"', page)
+    assert match, "the module entry point is not loaded from a versioned path"
+    assert 'data-static-base="/static/v-' in page, (
+        "the page does not tell its JS where this build's assets live, so the worker and the "
+        "style files would be fetched from unversioned URLs")
+
+
+def test_every_module_the_page_imports_resolves_under_the_version(client):
+    """A relative import inherits the version segment, which is the whole point of putting
+    it in the path. If any module 404s there, the page does not boot at all."""
+    page = client.get("/").get_data(as_text=True)
+    build = re.search(r'/static/v-([0-9a-f]+)/', page).group(1)
+    for module in sorted(p.name for p in (REPO / "static/js").glob("*.js")):
+        response = client.get(f"/static/v-{build}/js/{module}")
+        assert response.status_code == 200, f"{module} is not served under the version"
+
+
+def test_a_versioned_url_may_be_cached_forever_and_an_unversioned_one_may_not(client):
+    page = client.get("/").get_data(as_text=True)
+    build = re.search(r'/static/v-([0-9a-f]+)/', page).group(1)
+
+    versioned = client.get(f"/static/v-{build}/js/stage.js")
+    assert "immutable" in versioned.headers["Cache-Control"]
+    assert "max-age=31536000" in versioned.headers["Cache-Control"]
+
+    # The same file without a version must NOT make that promise. In production nginx serves
+    # this path; the assertion here is that the app never claims immutability for a URL that
+    # carries no version, whoever serves it.
+    plain = client.get("/static/js/stage.js")
+    assert "immutable" not in plain.headers.get("Cache-Control", ""), (
+        "an unversioned URL claims to be immutable, which is the bug that shipped a new "
+        "player against a year-old renderer")
+
+
+def test_the_build_version_changes_when_any_asset_changes(tmp_path):
+    from buttfold import store
+
+    root = tmp_path / "app"
+    (root / "static" / "js").mkdir(parents=True)
+    (root / "static" / "js" / "a.js").write_text("one")
+    (root / "static" / "b.css").write_text("two")
+    first = store.build_version(root)
+
+    (root / "static" / "js" / "a.js").write_text("one!")
+    assert store.build_version(root) != first, "editing a module did not change the build"
+
+    (root / "static" / "js" / "a.js").write_text("one")
+    assert store.build_version(root) == first, "the build version is not reproducible"
+
+    # A file appearing changes it too, and so does a rename: the path is hashed alongside
+    # the bytes, so two files swapping names is a different build.
+    (root / "static" / "js" / "c.js").write_text("three")
+    assert store.build_version(root) != first, "a new module did not change the build"
+
+    # Architecture B's results grow while the process runs and are not part of the front
+    # end. If they counted, the build version would change under a page that was open.
+    (root / "static" / "cache").mkdir()
+    (root / "static" / "cache" / "abc.json").write_text("{}")
+    with_cache = store.build_version(root)
+    (root / "static" / "cache" / "def.json").write_text("{}")
+    assert store.build_version(root) == with_cache, "the queue's cache changes the build"
+
+
+def test_the_fold_api_revalidates_and_is_therefore_countable(client):
+    """It changes on every rebake, so `immutable` would be a false claim; and it is the
+    launcher's beacon, so a response served from the browser's own cache would count a
+    visitor once and never again."""
+    response = client.get("/api/fold/ubiquitin")
+    assert response.status_code == 200
+    assert "no-cache" in response.headers["Cache-Control"]
+    assert "immutable" not in response.headers["Cache-Control"]
+    assert response.headers.get("ETag"), "no ETag, so revalidating re-sends the whole fold"
+
+
+def test_revalidating_a_fold_costs_a_304_and_no_body(client):
+    first = client.get("/api/fold/ubiquitin")
+    tag = first.headers["ETag"]
+    again = client.get("/api/fold/ubiquitin", headers={"If-None-Match": tag})
+    assert again.status_code == 304
+    assert not again.get_data(), "a 304 carried a body"
+    # And a stale tag gets the fold, not a 304.
+    assert client.get("/api/fold/ubiquitin",
+                      headers={"If-None-Match": '"stale"'}).status_code == 200
+
+
+def test_the_launcher_beacon_is_a_path_the_page_actually_requests():
+    """mdeller.com counts a visit by watching for a request only a rendering browser makes.
+
+    The first beacon named `/static/baked/gallery.json`, which **nothing fetches**: the
+    gallery is read server-side and the page asks for `/api/fold/<id>`. The count would have
+    read zero forever with nothing to show why.
+    """
+    player = (REPO / "static/js/player.js").read_text()
+    assert "/api/fold/" in player, "the page does not fetch the path the beacon watches"
+    # And it is fetched after the module graph runs, not from the HTML: a scanner fetches the
+    # document and stops, which is the whole basis of the count.
+    assert "/api/fold/" not in (REPO / "templates/index.html").read_text()

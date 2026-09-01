@@ -162,8 +162,38 @@ echo "$page" | grep -q 'id="badge-engine"' && check "the stage badge is present"
 html_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/" | tr -d '\r' | grep -i '^cache-control:' || true)
 [[ "$html_cc" == *"no-cache"* ]] && check "the HTML is no-cache ($html_cc)" yes || check "the HTML is no-cache (got: $html_cc)" ""
 
-css_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/buttfold.css" | tr -d '\r' | grep -i '^cache-control:' || true)
-[[ "$css_cc" == *"max-age=31536000"* ]] && check "static assets are long-cached" yes || check "static assets are long-cached (got: $css_cc)" ""
+# The versioned tree is the one that may be cached forever, and the page must actually use
+# it. An unversioned URL that claims to be immutable is the bug that shipped a new player
+# against a year-old renderer.
+build=$(echo "$page" | grep -o 'data-static-base="/static/v-[0-9a-f]*"' | head -1 \
+        | sed 's/.*v-\([0-9a-f]*\)".*/\1/')
+[[ -n "$build" ]] && check "the page loads a versioned front end (v-$build)" yes \
+                  || check "the page loads a versioned front end" ""
+
+versioned_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/v-$build/js/stage.js" \
+               | tr -d '\r' | grep -i '^cache-control:' || true)
+[[ "$versioned_cc" == *"max-age=31536000"* ]] && check "versioned assets are long-cached" yes \
+  || check "versioned assets are long-cached (got: $versioned_cc)" ""
+
+# And every module the page will import must be reachable under that same prefix, because a
+# relative import inherits it. A 404 here is a page that does not boot at all.
+for module in player.js stage.js cartoon.js StageCamera.js Sonifier.js audio.js frames.js \
+              PSEA.js ContactTracker.js MusicalScale.js fold_worker.js; do
+  code=$(curl -sf -m 15 -o /dev/null -w '%{http_code}' "$BASE/static/v-$build/js/$module" || echo 000)
+  [[ "$code" == "200" ]] || check "versioned /js/$module is served (got $code)" ""
+done
+check "every module resolves under the versioned prefix" yes
+
+plain_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/buttfold.css" | tr -d '\r' | grep -i '^cache-control:' || true)
+[[ "$plain_cc" == *"no-cache"* ]] && check "unversioned assets revalidate" yes \
+  || check "unversioned assets revalidate (got: $plain_cc)" ""
+
+# The fold API is the launcher's beacon AND changes on every rebake, so it must revalidate
+# rather than claim to be immutable: a response served from the browser's own cache never
+# reaches the server, and an immutable beacon counts a visitor once and never again.
+fold_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/api/fold/ubiquitin" | tr -d '\r' | grep -i '^cache-control:' || true)
+[[ "$fold_cc" == *"no-cache"* ]] && check "the fold API revalidates" yes \
+  || check "the fold API revalidates (got: $fold_cc)" ""
 
 wasm_type=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/wasm/go_model.wasm" | tr -d '\r' | grep -i '^content-type:' || true)
 [[ "$wasm_type" == *"application/wasm"* ]] && check "the wasm serves as application/wasm" yes || check "the wasm serves as application/wasm (got: $wasm_type)" ""

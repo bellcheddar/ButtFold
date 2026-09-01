@@ -309,3 +309,43 @@ One mistake of my own: I ran a command from the wrong directory and committed Bu
 LICENSE, THIRD-PARTY.md and journal into mdeller-landing with `git add -A`, which is the one
 thing Marc has explicitly asked me not to use. Caught before pushing, reset, and the launcher
 repo took only its own `apps.json` change.
+
+### The bug every gate was blind to
+
+Marc was still seeing the old round tube after the cartoon had been deployed and verified,
+and asked whether it was a cache thing. It was, and it was mine.
+
+The page versioned its module entry point as `player.js?v=<hash>`, and served every module
+that entry point imports at a bare URL with `immutable, max-age=31536000`. An ES module's
+`import './stage.js'` resolves against the importing module's own URL, so those never
+carried the version. A returning visitor therefore ran the new player against a year-old
+stage: a new cartoon renderer calling into the old round-tube one. Their browser did not
+fetch a stale copy; with `immutable` it never asked at all, which is also why changing the
+header could not have rescued anyone. Only a new URL can.
+
+The fold API had the same mistake with a second consequence. It is not immutable - it
+changes on every rebake - so Marc also held the old gallery order and a fold with no
+`ssConf`, which the cartoon needs.
+
+Eight gates were green throughout, and every one of them was wrong, because each launches
+Chrome with a fresh profile and an empty cache. The bug was visible only to somebody who had
+been here before, which is the worst possible audience to find it. So there is now a gate
+that loads the live site twice in the **same** profile and compares what is running.
+
+The fix is a version segment in the path, `/static/v-<build>/...`, rather than a query
+string: relative imports inherit a path segment, so every URL in the module graph moves
+together and `immutable` becomes true rather than asserted. No bundler, no build step.
+
+Marc asked in the same breath whether the hit counter was filtering bots. The counting was
+already right - `mdeller-stats.py` filters non-human user agents and collapses to one
+address per day - but ButtFold's beacon was `^/static/baked/gallery\.json`, and **nothing
+fetches that**: the gallery is read server-side and the page asks for `/api/fold/<id>`. The
+count would have read zero forever with nothing to show why, which is exactly the failure
+the launcher's own comment warns about. It is now `^/api/fold/`, which is fetched only after
+the module graph runs, and which revalidates rather than being immutable - an immutable
+beacon counts a visitor once and never again.
+
+The wiring audit earned its keep twice more in the same change, reporting the entire module
+graph as dead code first when the template's path gained a version segment and then when the
+worker's URL became a template literal. Both times it was right and I had simply not taught
+it the new shape.

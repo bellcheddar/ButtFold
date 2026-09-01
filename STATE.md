@@ -239,6 +239,12 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       is helix and coil only with no sheet at all, so the cyan never appeared until a
       visitor clicked something. Ubiquitin is the beta-grasp fold: both, and it collapses
       from Rg 21.3 to 11.5 Å.
+- [x] **The front end is versioned by URL path**, `/static/v-<build>/...`, after a returning
+      visitor was served a year-old renderer: an ES module's relative imports do not inherit
+      a query string on the entry point. `tests/cache_staleness.mjs` is the only gate that
+      runs with a warm cache, which is the only way to see it.
+- [x] **The launcher beacon points at a path the page actually fetches.** It named
+      `gallery.json`, which is read server-side and never requested by a browser.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

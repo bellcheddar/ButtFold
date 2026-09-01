@@ -19,6 +19,13 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three
 
 const $ = id => document.getElementById(id);
 
+/* Where this build's assets live, from the tag that loaded this module. Everything fetched
+ * at runtime goes through it, so a worker and a style file carry the same version as the
+ * module graph and are cached on the same terms. */
+const STATIC_BASE = document.currentScript?.dataset.staticBase
+  ?? document.querySelector('script[data-static-base]')?.dataset.staticBase
+  ?? '/static';
+
 /* The disclosure lines. Verbatim quotations from the shipped app, em dash included, and
  * the Phase 5 gate greps the served page for them. ButtFold's own prose uses no em dashes;
  * these are not ButtFold's own prose. PLAN.md section 7. */
@@ -81,7 +88,7 @@ class Player {
     const ids = [...document.querySelectorAll('#style-mode button')]
       .map(b => b.dataset.style);
     const loaded = await Promise.all(ids.map(async id => {
-      const response = await fetch(`/static/styles/${id}.json`);
+      const response = await fetch(`${STATIC_BASE}/styles/${id}.json`);
       if (!response.ok) throw new Error(`style ${id}: HTTP ${response.status}`);
       return [id, await response.json()];
     }));
@@ -291,7 +298,7 @@ class Player {
     const native = await response.json();
 
     this.worker?.terminate();
-    this.worker = new Worker('/static/js/fold_worker.js', { type: 'module' });
+    this.worker = new Worker(`${STATIC_BASE}/js/fold_worker.js`, { type: 'module' });
     this.liveFrames = [];
     this.frames = [];
     this.history = { helix: [], sheet: [], coil: [], rg: [] };

@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, make_response, render_template, request, send_from_directory
 
 from buttfold import store
 from buttfold import queue as jobs
@@ -29,26 +29,38 @@ VERSION = "0.1.0"
 app = Flask(__name__, static_folder=str(REPO / "static"), template_folder=str(REPO / "templates"))
 
 
-def asset_versions() -> dict[str, str]:
-    """`?v=<content hash>` for every asset the template names.
+# One version for the whole front end, in the URL PATH rather than in a query string.
+#
+# Versioning only the entry point does not work for ES modules, and shipping that was a real
+# bug: `import './stage.js'` resolves against the importing module's own URL, so
+# `player.js?v=...` leaves every module it imports on a bare URL. Those were served
+# `immutable, max-age=31536000`, so a browser that already had them would not re-fetch them
+# for a year and would not even ask - a new player calling into a year-old renderer.
+#
+# A version segment in the path fixes it with no build step, because relative imports inherit
+# it: from `/static/v-abc/js/player.js`, `./stage.js` is `/static/v-abc/js/stage.js` and
+# `../wasm/go_model.mjs` is `/static/v-abc/wasm/go_model.mjs`. Every URL moves together, so
+# `immutable` is true rather than merely claimed.
+_BUILD = None
 
-    Computed per request in development and once per process in production; either way it
-    is a few small SHA-256s. The alternative, hard-coding the list at deploy time, is a
-    second place for the truth to live and the place it goes stale.
+
+def build_version() -> str:
+    global _BUILD
+    if _BUILD is None or app.debug:
+        _BUILD = store.build_version(REPO)
+    return _BUILD
+
+
+@app.route("/static/v-<version>/<path:asset>")
+def versioned_static(version: str, asset: str):
+    """The same files as `/static/`, at a URL that changes when any of them do.
+
+    The version is not checked against the current build: an older one must keep working,
+    because a page already open in a tab will go on asking for the URLs it was served with.
     """
-    wanted = {
-        "css": "static/buttfold.css",
-        "player": "static/js/player.js",
-        "stage": "static/js/stage.js",
-        "contacts": "static/js/ContactTracker.js",
-        "psea": "static/js/PSEA.js",
-        "gallery": "static/baked/gallery.json",
-    }
-    out = {}
-    for key, relative in wanted.items():
-        path = REPO / relative
-        out[key] = store.content_hash(path) if path.exists() else "missing"
-    return out
+    response = send_from_directory(app.static_folder, asset)
+    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
 
 
 @app.after_request
@@ -77,8 +89,9 @@ def index():
     return render_template(
         "index.html",
         version=VERSION,
-        assets=asset_versions(),
+        build=build_version(),
         gallery=store.index(),
+        residueCap=LIVE_RESIDUE_CAP,
         links=json.loads((REPO / "static" / "links.json").read_text()),
     )
 
@@ -89,16 +102,35 @@ def api_gallery():
     return jsonify({"version": VERSION, "folds": store.index()})
 
 
+def _revalidating(payload: dict, tag: str):
+    """A JSON response the browser may keep but must revalidate, with an ETag so that
+    revalidating usually costs a 304 and no body.
+
+    **Not `immutable`, which is what this used to send at a URL carrying no version.** A
+    fold is a file that changes whenever the gallery is rebaked, so claiming it never will
+    is simply false, and a browser takes that claim at its word for a year.
+
+    It is also what makes the launcher's hit counter work. mdeller.com counts a visit by
+    watching for a request only a rendering browser makes, and this route is ButtFold's:
+    the page fetches a fold after its module graph has run, where a scanner fetches the HTML
+    and stops. A response the browser serves from its own cache never reaches the server, so
+    an immutable beacon counts a visitor once and never again.
+    """
+    if request.if_none_match and tag in request.if_none_match:
+        response = make_response("", 304)
+    else:
+        response = jsonify(payload)
+    response.set_etag(tag)
+    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
+
 @app.route("/api/fold/<fold_id>")
 def api_fold(fold_id: str):
     entry = store.fold(fold_id)
     if entry is None:
         return jsonify({"error": f"no fold with id {fold_id!r}"}), 404
-    response = jsonify(entry)
-    # Immutable for a given content hash, and the template asks for it with one. A fold
-    # that changes gets a new hash and therefore a new URL.
-    response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    return response
+    return _revalidating(entry, f"{build_version()}-{fold_id}")
 
 
 # The residue cap architecture B ships with, measured in P0-1: ubiquitin folds on the

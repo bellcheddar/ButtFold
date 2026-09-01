@@ -284,6 +284,57 @@ Progress is read from the growing frame file's **byte count**: the stream format
 little-endian int32 then float32 xyz triples, so bytes map to frames exactly. Parsing the
 binary's stdout would be a second and lossier source of the same fact.
 
+## The stale-module bug
+
+2026-09-01, found by Marc, who was still seeing the round tube after the cartoon was
+deployed and verified. Every gate was green and every gate was wrong about this, because
+each launches Chrome with a fresh profile and therefore an empty cache.
+
+| URL | what it was served with | version in the URL? |
+|---|---|---|
+| `/static/js/player.js?v=<hash>` | `immutable, max-age=31536000` | yes |
+| `/static/js/stage.js` | `immutable, max-age=31536000` | **no** |
+| `/static/js/cartoon.js` | `immutable, max-age=31536000` | **no** |
+| `/api/fold/<id>` | `immutable, max-age=31536000` | **no** |
+| `/static/styles/*.json` | `immutable, max-age=31536000` | **no** |
+
+An ES module's `import './stage.js'` resolves against the importing module's own URL, so
+versioning only the entry point leaves every module it imports unversioned. A returning
+visitor got the new `player.js` and a year-old `stage.js`: a new cartoon renderer calling
+into the old round-tube one. Their browser did not fetch a stale copy, it never asked.
+
+The fold API was the same mistake with a second consequence: it changes on every rebake, so
+`immutable` was simply false, and Marc's browser also held the old gallery order and a fold
+carrying no `ssConf`.
+
+**The version now lives in the URL path**, `/static/v-<build>/...`, so relative imports
+inherit it and every URL moves together. `immutable` is then true rather than asserted. The
+API revalidates with an ETag instead.
+
+Verified the only way it can be: `tests/cache_staleness.mjs` loads the live site twice in the
+**same** browser profile and compares what is running.
+
+| | cold cache | warm cache |
+|---|---|---|
+| fold loaded | ubiquitin | ubiquitin |
+| fold JSON carries `ssConf` | yes | yes |
+| cartoon renderer running | yes | yes |
+| mesh vertices | 16,562 | 16,562 |
+
+## The launcher's hit counter
+
+The beacon named `^/static/baked/gallery\.json`, which **nothing fetches**: the gallery is
+read server-side and the page asks for `/api/fold/<id>`. ButtFold's visit count would have
+read zero forever with nothing to indicate why. It is now `^/api/fold/`, which the page
+requests after its module graph has run, where a scanner fetches the document and stops.
+
+The counting itself is `mdeller-stats.py`'s and was already right: it filters non-human user
+agents and collapses to one address per day, so an engaged visitor switching proteins counts
+once. What ButtFold had to get right was being counted at all, and then not disappearing
+behind its own cache - which is why `/api/fold/` revalidates rather than being immutable. A
+response served from the browser's own cache never reaches the server, so an immutable
+beacon counts a visitor once and never again.
+
 ## The cartoon
 
 2026-09-01, after Marc reported the ribbon reading as a coiled coil. Measured on ubiquitin's
