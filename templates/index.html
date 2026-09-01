@@ -21,7 +21,14 @@
     <span class="logo-dot" aria-hidden="true"></span>
     <a class="who" href="https://marcdeller.com">Marc C. Deller, D.Phil.</a>
     <span class="spacer"></span>
-    <a class="shop-link" href="#shop">Get PhoneFold for iPhone, iPad, Mac, Watch and Vision Pro &rarr;</a>
+    <!-- Two labels, one anchor. The full line is PLAN section 8's wording and it is right
+         on a desktop; on a phone it wraps to three lines and pushes the protein, the
+         disclosure and the stage below the fold, which is the opposite of what a shop link
+         is for. Both are in the DOM so the link is one accessible element either way. -->
+    <a class="shop-link" href="#shop">
+      <span class="on-wide">Get PhoneFold for iPhone, iPad, Mac, Watch and Vision Pro &rarr;</span>
+      <span class="on-narrow">Get the app &rarr;</span>
+    </a>
     <a class="header-link" href="mailto:marc@marcdeller.com">Contact</a>
   </div>
 </header>
@@ -142,19 +149,57 @@
   </div>
 
   <div class="section-head" id="shop">
-    <h2>The apps</h2>
+    <h2>Get the app</h2>
     <span class="note">the real thing, on a device</span>
   </div>
-  <!-- Phase 5 builds this out from links.json. The data is already loaded and correct, so
-       what is here now is the honest minimum rather than a placeholder. -->
+
+  <!-- The shop window, PLAN section 8. Before/after live is DATA, not code: while
+       app_store_url is null a card shows an honest "In review at the App Store" tag and
+       links to its fallback. When an app goes live, one field in static/links.json changes
+       and the card flips to the store link. No template edit and no code path change, which
+       is what makes the flip verifiable by diffing two GETs of the live page.
+
+       Apple's official "Download on the App Store" badge artwork is deliberately NOT used
+       here yet: it may only be shown for an app that is actually on the store, and none of
+       these are. Using it early would be both a trademark problem and a lie. -->
+  {% for app in links.apps if app.featured %}
+  <div class="shop-feature">
+    <div class="shop-feature-body">
+      <h3>{{ app.name }}</h3>
+      <p class="blurb">{{ app.blurb }}</p>
+      <p class="platforms">{{ app.platforms|join(' &middot; ')|safe }}</p>
+      {% if app.app_store_url %}
+      <a class="store-link" href="{{ app.app_store_url }}" rel="noopener">
+        Download on the App Store</a>
+      {% else %}
+      <p class="status-tag">
+        {% if app.status == 'in_review' %}In review at the App Store{% else %}In development{% endif %}
+      </p>
+      {% if app.fallback_url %}
+      <a class="fallback-link" href="{{ app.fallback_url }}" rel="noopener">
+        The source, in the meantime &rarr;</a>
+      {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="section-head">
+    <h2>More from Marc</h2>
+    <span class="note">the rest of the shelf</span>
+  </div>
   <div class="gallery">
-    {% for app in links.apps %}
-    <a class="card" href="{{ app.app_store_url or app.fallback_url or '#shop' }}"
-       {% if app.app_store_url or app.fallback_url %}rel="noopener"{% endif %}>
+    {% for app in links.apps if not app.featured %}
+    {% if app.app_store_url or app.fallback_url %}
+    <a class="card" href="{{ app.app_store_url or app.fallback_url }}" rel="noopener">
+    {% else %}
+    <div class="card card-static">
+    {% endif %}
       <span class="name">{{ app.name }}</span>
       <span class="sub">{% if app.app_store_url %}On the App Store{% elif app.status == 'in_review' %}In review at the App Store{% else %}In development{% endif %}</span>
       <span class="quality">{{ app.platforms|join(' &middot; ')|safe }}</span>
-    </a>
+      <span class="blurb-small">{{ app.blurb }}</span>
+    {% if app.app_store_url or app.fallback_url %}</a>{% else %}</div>{% endif %}
     {% endfor %}
   </div>
 

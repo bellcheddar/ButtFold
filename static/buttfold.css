@@ -92,6 +92,20 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .site-header .shop-link { color: var(--bf-action); font-weight: 600; font-size: 14px; }
 .site-header .shop-link:hover { color: var(--bf-cyan); }
 
+/* The header must stay one line. Measured at 390 px: the full shop-link wording wraps to
+   three lines and pushes the protein name, the disclosure and the stage below the fold. */
+.on-narrow { display: none; }
+@media (max-width: 720px) {
+  .on-wide { display: none; }
+  .on-narrow { display: inline; }
+  .site-header .wrap { gap: 10px; flex-wrap: nowrap; }
+  .site-header .who { font-size: 14px; white-space: nowrap; }
+  .site-header .header-link { display: none; }   /* the footer carries the contact link */
+  .title-block { padding: 18px 0 10px; }
+  .pill-row > .label { min-width: 0; }
+  .segmented { overflow-x: auto; max-width: 100%; }
+}
+
 /* ---------------------------------------------------------------- title block -------
    The protein name as a large title, and directly beneath it in amber the engine
    disclosure line. Exactly where the phone app puts it: in the frame, not in an About
@@ -286,6 +300,47 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   color: var(--bf-text-3); font-size: 15px;
 }
 .honesty p { margin: 0; }
+
+/* ---------------------------------------------------------------- shop window --------- */
+
+.shop-feature {
+  background: var(--bf-ground-raised); border-radius: var(--bf-radius);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 22px 24px; margin: 4px 0 8px;
+}
+.shop-feature h3 {
+  margin: 0 0 8px; font-size: 22px; color: var(--bf-text-1); font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.shop-feature .blurb { margin: 0 0 12px; color: var(--bf-text-3); max-width: 60ch; }
+.shop-feature .platforms {
+  margin: 0 0 16px; font: 500 12px/1.5 var(--bf-mono); color: var(--bf-text-2);
+}
+.store-link {
+  display: inline-block; background: var(--bf-action); color: #fff;
+  font: 600 15px/1 var(--bf-sans); padding: 13px 24px;
+  border-radius: var(--bf-radius-pill); text-decoration: none;
+}
+.store-link:hover { filter: brightness(1.12); color: #fff; text-decoration: none; }
+
+/* Not dimmed. An app in review is a fact about the app, not a disabled state, and greying
+   it out would read as "broken" rather than as "not yet". */
+.status-tag {
+  display: inline-block; margin: 0 0 10px;
+  background: rgba(252, 185, 0, 0.14); color: var(--bf-amber);
+  border: 1px solid rgba(252, 185, 0, 0.32);
+  border-radius: var(--bf-radius-pill); padding: 8px 16px;
+  font: 500 13px/1 var(--bf-sans);
+}
+.fallback-link { display: block; font-size: 14px; }
+
+.card-static { cursor: default; }
+.card-static:hover { transform: none; border-color: rgba(255, 255, 255, 0.05); }
+.card .blurb-small {
+  display: block; color: var(--bf-text-4); font-size: 12px; margin-top: 8px;
+  line-height: 1.45;
+}
+.gallery .card { flex: 0 0 220px; }
 
 /* ---------------------------------------------------------------- footer -------------- */
 

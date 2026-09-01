@@ -166,8 +166,32 @@ to a finished fold adopted by the player, badge reading "on the server".
 
 ## Phase 5: shop window, honesty, polish
 
-**doing.** Gate: the strings are live. **HUMAN** gates at the end (wording, resemblance).
+**machine gate met. Two HUMAN gates open.**
+
+| # | Task | Status |
+|---|---|---|
+| 5.1 | Per-residue confidence wired to the stage; the confidence ramp works | done |
+| 5.2 | Colour-blind-safe palette (Okabe-Ito) and the confidence ramp, both live | done |
+| 5.3 | Shop window from `links.json`: featured card plus More from Marc | done |
+| 5.4 | The honest state is the default; Apple's badge only with a real store URL | done |
+| 5.5 | Mobile pass at 390 x 844 | done |
+| 5.6 | `tests/test_honesty.py`; colour-mode and mobile checks in the screenshot gate | done |
+
+**Exit gate (machine): met.** The verbatim strings and the approved paragraph are in the
+served page; flipping one `links.json` field flips the card, verified by diffing two GETs.
+
+**HUMAN gates, open:**
+
+1. **The disclosure paragraph wording.** It is live on the page now, and the test asserts
+   the exact text, so changing a word means changing `templates/index.html` and
+   `tests/test_honesty.py` together. Marc approves or rewrites it.
+2. **The side-by-side resemblance.** A ButtFold screenshot next to a PhoneFold screenshot.
+   `build/p0/stage.png` and `build/p0/stage-mobile.png` are current. The agent never marks
+   this met.
 
 ## Phase 6: deploy and list
 
-todo. Gate: live and verified from outside.
+**todo, and waiting on Marc**, because it is outward-facing in a way no earlier phase was:
+a new public subdomain, its own certbot certificate, and an entry in the mdeller.com
+launcher that publishes ButtFold to anyone who visits. Everything it needs is built and
+green locally. Gate: live and verified from outside.

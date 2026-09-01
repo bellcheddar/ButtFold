@@ -115,6 +115,12 @@ class Player {
       points: Float32Array.from(frame.points),
       ss: runLengthDecode(frame.ss),
       newContacts: frame.newContacts,
+      // 0..100 per residue, as the artefact stores it, scaled to the 0..1 the confidence
+      // colour ramp wants. Without this the ramp read `null` for every residue and painted
+      // the whole ribbon the same "below 50" orange - a mode that looked implemented,
+      // changed the colours, and showed nothing. The wiring audit cannot see this: the
+      // module is imported, the button is wired, the function is called.
+      confidence: frame.conf ? Float32Array.from(frame.conf, c => c / 100) : null,
       rg: frame.rg / 10,
       q: frame.q / 1000,
     }));
@@ -396,7 +402,7 @@ class Player {
     if (!this.frames.length) return;
     this.index = Math.max(0, Math.min(this.frames.length - 1, index));
     const frame = this.frames[this.index];
-    this.stage.render(frame.points, frame.ss, null);
+    this.stage.render(frame.points, frame.ss, frame.confidence);
     this._readouts(frame);
     $('seek').value = String(this.index);
     $('frame-count').textContent =
@@ -474,7 +480,7 @@ class Player {
     } else if (this.frames.length) {
       // Still re-render, because the idle spin moved the camera.
       const frame = this.frames[this.index];
-      this.stage.render(frame.points, frame.ss, null);
+      this.stage.render(frame.points, frame.ss, frame.confidence);
     }
     requestAnimationFrame(t => this._loop(t));
   }

@@ -163,6 +163,60 @@ const uniformity = await evaluate(`(() => {
            nonUniformFraction: 1 - modal / total };
 })()`);
 
+// Each colour mode must produce a DIFFERENT rendering. This is the check that would have
+// caught the confidence ramp reading `null` for every residue and painting the whole ribbon
+// one colour: the module was imported, the button was wired, the function was called, and
+// the wiring audit could see nothing wrong. A mode that changes the colours to a single
+// uniform colour looks implemented from every angle except this one.
+const modes = await evaluate(`(async () => {
+  const out = {};
+  const canvas = document.querySelector('#stage canvas');
+  const player = window.buttfoldPlayer;
+  for (const mode of ['structure', 'colourblind', 'confidence']) {
+    document.querySelector('#colour-mode button[data-mode="' + mode + '"]').click();
+    const frame = player.frames[player.index];
+    player.stage.render(frame.points, frame.ss, frame.confidence);
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+    gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    const counts = new Map();
+    let signature = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const key = (pixels[i] >> 4) + ',' + (pixels[i+1] >> 4) + ',' + (pixels[i+2] >> 4);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      signature = (signature * 31 + pixels[i] + pixels[i+1] * 3 + pixels[i+2] * 7) >>> 0;
+    }
+    let modal = 0;
+    for (const v of counts.values()) if (v > modal) modal = v;
+    out[mode] = { distinct: counts.size, nonUniform: 1 - modal / (canvas.width * canvas.height),
+                  signature };
+  }
+  document.querySelector('#colour-mode button[data-mode="structure"]').click();
+  return out;
+})()`);
+
+// And the page must be usable on a phone: the stage is specified as roughly the lower half
+// of the viewport, and nothing may push the body wider than the screen.
+await send('Emulation.setDeviceMetricsOverride', {
+  width: 390, height: 844, deviceScaleFactor: 3, mobile: true,
+}, sessionId);
+await sleep(900);
+const mobile = await evaluate(`(() => {
+  const stage = document.getElementById('stage').getBoundingClientRect();
+  return {
+    bodyScrollWidth: document.body.scrollWidth,
+    viewportWidth: window.innerWidth,
+    stageHeight: Math.round(stage.height),
+    stageWidth: Math.round(stage.width),
+    viewportHeight: window.innerHeight,
+    controlsReachable: [...document.querySelectorAll('.segmented button, .play')]
+      .every(el => el.getBoundingClientRect().right <= window.innerWidth + 1),
+  };
+})()`);
+const mobileShot = await send('Page.captureScreenshot', { format: 'png' }, sessionId);
+writeFileSync(outPng.replace(/\.png$/, '-mobile.png'),
+              Buffer.from(mobileShot.data, 'base64'));
+
 chrome.kill();
 
 console.log(`fold          ${info.name} (${info.id}), ${info.residues} residues, ${info.frames} frames`);
@@ -171,6 +225,12 @@ console.log(`contacts      ${info.contactsTotal} total, ${info.contactsFirstFram
 console.log(`stage canvas  ${uniformity.width}x${uniformity.height}, ${uniformity.distinctColours} distinct colours`);
 console.log(`non-uniform   ${(uniformity.nonUniformFraction * 100).toFixed(1)}% of pixels differ from the modal colour`);
 console.log(`screenshot    ${outPng}`);
+for (const [mode, m] of Object.entries(modes)) {
+  console.log(`  ${mode.padEnd(12)} ${m.distinct} colours, `
+              + `${(m.nonUniform * 100).toFixed(1)}% non-uniform, signature ${m.signature}`);
+}
+console.log(`mobile 390px  body ${mobile.bodyScrollWidth}px wide, stage `
+            + `${mobile.stageWidth}x${mobile.stageHeight} of ${mobile.viewportHeight}px`);
 if (pageLogs.length) pageLogs.forEach(l => console.log(`  [page] ${l}`));
 
 const failures = [];
@@ -193,6 +253,32 @@ if (!(info.contactsFirstFrame / info.contactsTotal < 0.25)) {
 if (!/[HEC]/.test(info.ssMid)) {
   failures.push('the mid-fold frame carries no secondary structure');
 }
+
+// Every colour mode must draw something, and no two may draw the same thing.
+for (const [mode, m] of Object.entries(modes)) {
+  if (!(m.nonUniform > 0.01)) failures.push(`the ${mode} colour mode drew nothing`);
+  if (!(m.distinct > 4)) failures.push(`the ${mode} colour mode drew ${m.distinct} colours`);
+}
+const signatures = Object.entries(modes).map(([mode, m]) => [mode, m.signature]);
+for (let i = 0; i < signatures.length; i++) {
+  for (let j = i + 1; j < signatures.length; j++) {
+    if (signatures[i][1] === signatures[j][1]) {
+      failures.push(`the ${signatures[i][0]} and ${signatures[j][0]} colour modes render `
+                    + 'identically, so at least one of them is wired to nothing');
+    }
+  }
+}
+
+// The mobile pass. A page whose body is wider than the viewport scrolls sideways, which on
+// a phone is the difference between a usable page and a broken one.
+if (mobile.bodyScrollWidth > mobile.viewportWidth + 1) {
+  failures.push(`the body is ${mobile.bodyScrollWidth}px wide in a ${mobile.viewportWidth}px `
+                + 'viewport, so the page scrolls sideways');
+}
+if (!(mobile.stageHeight >= 300)) {
+  failures.push(`the stage is only ${mobile.stageHeight}px tall on a phone`);
+}
+if (!mobile.controlsReachable) failures.push('a control is off the right edge on a phone');
 
 if (failures.length) {
   console.error('\nFAIL');

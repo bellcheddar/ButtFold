@@ -284,6 +284,55 @@ Progress is read from the growing frame file's **byte count**: the stream format
 little-endian int32 then float32 xyz triples, so bytes map to frames exactly. Parsing the
 binary's stdout would be a second and lossier source of the same fact.
 
+## Phase 5: the honesty strings and the shop window
+
+2026-09-01. The machine half of the Phase 5 gate. The human half - the wording, and the
+side-by-side resemblance - is Marc's and is open.
+
+| check | result |
+|---|---|
+| the Gō disclosure, byte for byte, em dash included | present, once, in the shipped module |
+| the Genie 2 disclosure, byte for byte | present |
+| the morph disclosure | **absent**, asserted: no morph engine ships, and a disclosure for one would be its own dishonesty |
+| the disclosure paragraph in the served page | present, whitespace-normalised, exact wording |
+| the paragraph is body text | no link, no `<details>`, not hidden |
+| any app shown as live before it is | none |
+| Apple's badge wording used without a store URL | none |
+| flipping one `links.json` field flips the card | verified by diffing two GETs |
+
+**Two of the three disclosure strings never appear in a GET of the HTML**, because the page
+writes them in at load. Greping the served HTML for those would pass forever while the page
+showed nothing, so they are checked where they live and their presence on the page is
+asserted in a real browser instead.
+
+### The three colour modes render differently
+
+Measured on the stage's own pixels, per mode:
+
+| mode | distinct colours | non-uniform pixels |
+|---|---|---|
+| structure | 97 | 1.4% |
+| colour-blind safe | 93 | 1.4% |
+| confidence | 207 | 1.4% |
+
+**This check exists because the confidence ramp was wired to nothing.** The stage was handed
+`null` for per-residue confidence, so the ramp painted every residue the same "below 50"
+orange: the module was imported, the button was wired, the function was called, and
+`audit_wiring.py` could see nothing wrong. A mode that changes the colours to one uniform
+colour looks implemented from every angle except a pixel comparison against the other modes.
+
+### Mobile
+
+| | measured at 390 x 844 |
+|---|---|
+| body width against viewport | 390 px in 390 px, no sideways scroll |
+| stage | 350 x 439 px, 52% of the viewport height |
+| controls off the right edge | none |
+
+The header's shop link carries two labels. PLAN section 8's full wording is right on a
+desktop and wraps to **three lines** on a phone, pushing the protein name, the disclosure
+line and the stage below the fold.
+
 ## P0-4: baked payload size
 
 2026-09-01, M1 Max. `tools/bake_gallery.py`, six Gō folds, 150 frames each, 3D coordinates
