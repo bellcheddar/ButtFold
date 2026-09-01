@@ -168,6 +168,12 @@ css_cc=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/buttfold.css" | tr -d '\
 wasm_type=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/wasm/go_model.wasm" | tr -d '\r' | grep -i '^content-type:' || true)
 [[ "$wasm_type" == *"application/wasm"* ]] && check "the wasm serves as application/wasm" yes || check "the wasm serves as application/wasm (got: $wasm_type)" ""
 
+# A second content type, from a different family, because a `types` block inside a location
+# replaces the whole MIME table rather than adding to it: checking only the one type the
+# block was written for is exactly how that goes unnoticed.
+png_type=$(curl -sf -m 15 -D - -o /dev/null "$BASE/static/screenshot.png" | tr -d '\r' | grep -i '^content-type:' || true)
+[[ "$png_type" == *"image/png"* ]] && check "images serve as image/png" yes || check "images serve as image/png (got: $png_type)" ""
+
 if [[ "$scheme" == "https" ]]; then
   proto=$(curl -sf -m 15 -o /dev/null -w '%{http_version}' "$BASE/")
   [[ "$proto" == "2" ]] && check "http2 is on" yes || check "http2 is on (got HTTP/$proto)" ""
