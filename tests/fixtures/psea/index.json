@@ -1,0 +1,67 @@
+{
+ "cases": [
+  {
+   "name": "native-trp_cage",
+   "file": "native-trp_cage.json",
+   "counts": {
+    "H": 8,
+    "E": 0,
+    "C": 12
+   }
+  },
+  {
+   "name": "native-villin_hp36",
+   "file": "native-villin_hp36.json",
+   "counts": {
+    "H": 24,
+    "E": 0,
+    "C": 12
+   }
+  },
+  {
+   "name": "native-protein_g_b1",
+   "file": "native-protein_g_b1.json",
+   "counts": {
+    "H": 15,
+    "E": 22,
+    "C": 19
+   }
+  },
+  {
+   "name": "native-ubiquitin",
+   "file": "native-ubiquitin.json",
+   "counts": {
+    "H": 11,
+    "E": 22,
+    "C": 43
+   }
+  },
+  {
+   "name": "native-alpha3d",
+   "file": "native-alpha3d.json",
+   "counts": {
+    "H": 60,
+    "E": 0,
+    "C": 13
+   }
+  },
+  {
+   "name": "coil-ubiquitin-seed1",
+   "file": "coil-ubiquitin-seed1.json",
+   "counts": {
+    "H": 0,
+    "E": 0,
+    "C": 76
+   }
+  },
+  {
+   "name": "short-4",
+   "file": "short-4.json",
+   "counts": {
+    "H": 0,
+    "E": 0,
+    "C": 4
+   }
+  }
+ ]
+}

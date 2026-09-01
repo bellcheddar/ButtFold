@@ -1,0 +1,5 @@
+# ButtFold web layer. Deliberately tiny: the droplet has 3.9 GB shared with five apps, and
+# the heavy compute is a 300-line C binary, not a Python dependency. No numpy here; the
+# baker's dependencies live in requirements-tools.txt and never reach the droplet.
+Flask>=3.0
+gunicorn>=21.2

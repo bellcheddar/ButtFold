@@ -1,0 +1,63 @@
+{
+  "comment": [
+    "The shop window, PLAN.md section 8. Before/after live is DATA, not code: while",
+    "app_store_url is null the card shows an honest 'In review at the App Store' tag and",
+    "links to the fallback. When an app goes live, one field changes and the card flips to",
+    "the official badge and the store URL. No template edit, no code path change, which is",
+    "what makes the flip verifiable by diffing two GETs of the live page.",
+    "Never imply an app is live before it is: the honest state is the default here."
+  ],
+  "apps": [
+    {
+      "id": "phonefold",
+      "name": "PhoneFold",
+      "blurb": "A protein folds on your iPhone and you hear it happen. The same Go model this page runs, on device, with haptics and spatial audio.",
+      "platforms": ["iPhone", "iPad", "Mac", "Apple Watch", "Vision Pro"],
+      "app_store_url": null,
+      "fallback_url": "https://github.com/bellcheddar/PhoneFold",
+      "status": "in_review",
+      "featured": true
+    },
+    {
+      "id": "boffin",
+      "name": "BOFFIN",
+      "blurb": "On-device protein property prediction: secondary structure, disorder and more, with no network round trip.",
+      "platforms": ["iPhone", "iPad"],
+      "app_store_url": null,
+      "fallback_url": null,
+      "status": "building",
+      "featured": false
+    },
+    {
+      "id": "jumpjet",
+      "name": "JUMPjet",
+      "blurb": "Protein dynamics on device: watch a structure breathe, and measure how much.",
+      "platforms": ["iPhone", "iPad"],
+      "app_store_url": null,
+      "fallback_url": null,
+      "status": "in_review",
+      "featured": false
+    },
+    {
+      "id": "hawker",
+      "name": "HAWKER",
+      "blurb": "Clinical assets that failed, and what happened to them. A browsable record of the drugs that did not make it.",
+      "platforms": ["iPhone", "iPad"],
+      "app_store_url": null,
+      "fallback_url": null,
+      "status": "in_review",
+      "app_store_connect_id": "6806223048",
+      "featured": false
+    },
+    {
+      "id": "pfamie",
+      "name": "PfamIE",
+      "blurb": "Protein families, explorable.",
+      "platforms": ["iPhone", "iPad"],
+      "app_store_url": null,
+      "fallback_url": null,
+      "status": "building",
+      "featured": false
+    }
+  ]
+}

@@ -149,4 +149,39 @@ file, component by component.
 
 ## P0-4: baked payload size
 
-*pending*
+2026-09-01, M1 Max. `tools/bake_gallery.py`, six Gō folds, 150 frames each, 3D coordinates
+quantised to integers in a ±1000 box, with per-frame contacts, run-length secondary
+structure, Rg and Q.
+
+| | |
+|---|---|
+| `static/baked/gallery.json` | **686 kB** (0.67 MB) |
+| budget (PLAN section 3) | 4 MB |
+| per fold | 114 kB average |
+| Watch reference (2D, 6 folds, 90 frames) | 232 kB |
+
+Comfortably inside the budget, so the 4 MB figure stays and there is room for the 2 to 4
+generative entries and for more frames if the animation wants them. Served gzipped by nginx
+this will be smaller again; the number above is the file on disk, which is the honest one to
+budget against.
+
+### What the bake asserted, per fold
+
+Both assertions are the ones PhoneFold's thrown-away Watch bake would have failed. Every
+fold passes with room to spare: the loosest collapse ratio is 0.72 against a 0.80 bar, and
+the worst first-frame contact fraction is 4% against a 25% bar.
+
+| protein | residues | frames | Rg | collapse ratio | contacts | on frame 1 | final Q | RMSD | fold time | H/E/C |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Trp-cage TC5b | 20 | 150 | 9.5 to 6.9 Å | **0.72** | 858 | **2%** | 1.0 | 0.71 Å | 5.2 s | 8/0/12 |
+| Pin1 WW domain | 34 | 150 | 12.8 to 9.2 Å | **0.72** | 1240 | **3%** | 0.957 | 0.83 Å | 18.6 s | 0/11/23 |
+| Villin headpiece subdomain HP36 | 36 | 150 | 13.9 to 9.9 Å | **0.71** | 1435 | **2%** | 0.957 | 1.97 Å | 21.2 s | 18/0/18 |
+| Protein G B1 domain | 56 | 150 | 22.0 to 10.3 Å | **0.47** | 2086 | **3%** | 0.993 | 1.0 Å | 64.7 s | 14/21/21 |
+| Alpha-3D, a de novo three-helix bundle | 73 | 150 | 21.4 to 13.2 Å | **0.62** | 3110 | **3%** | 0.945 | 2.21 Å | 126.6 s | 57/0/16 |
+| Ubiquitin | 76 | 150 | 21.3 to 11.5 Å | **0.54** | 3050 | **4%** | 0.973 | 1.0 Å | 141.9 s | 10/17/49 |
+
+Secondary structure is P-SEA on the final frame, after three frames of temporal hysteresis.
+The assignments are the expected ones for each fold: trp-cage one short helix, the WW domain
+all sheet, villin and alpha-3D all helix, protein G and ubiquitin the mixed alpha/beta
+folds. A baker that had the SS code wired to the wrong frame, or not wired at all, would
+show up here as a column of zeros or a column of identical values.

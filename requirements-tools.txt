@@ -1,0 +1,3 @@
+# Mac-side only: the baker, the fixture generators and the measurement scripts. Never
+# installed on the droplet.
+numpy>=1.26

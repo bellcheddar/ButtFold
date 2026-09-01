@@ -1,0 +1,298 @@
+/* ButtFold. PLAN.md section 6: this is built to look like the Apple app, which is a
+   requirement and not a preference. Every hex value below is taken from the live app by
+   frequency of use, and --bf-stage was measured from a render rather than computed. */
+
+:root {
+  --bf-ground:        #0B0A1F;   /* page ground */
+  --bf-ground-deep:   #05040E;   /* page gradient floor, footer */
+  --bf-ground-raised: #181432;   /* cards, pills at rest */
+  --bf-stage:         #0D0D26;   /* 3D stage clear colour: sRGB of the app's linear
+                                    RGB (0.047, 0.039, 0.122), measured from a render */
+  --bf-action:        #2B5CE6;   /* primary blue: buttons, selected pills */
+  --bf-text-1:        #FFFFFF;
+  --bf-text-2:        #6B7C93;   /* secondary text */
+  --bf-text-3:        #B6BFD0;   /* dim text */
+  --bf-text-4:        #8A93A8;   /* dimmer text */
+  --bf-cyan:          #22E5FF;   /* accent; sheet on the ribbon */
+  --bf-magenta:       #FF3D9A;   /* accent + error text; helix on the ribbon */
+  --bf-amber:         #FCB900;   /* disclosure line, logo dot */
+  --bf-pale-blue:     #8FB4FF;
+
+  /* Ribbon colouring, the thing a viewer actually sees. Helix magenta, sheet cyan, coil
+     slate, exactly as the app draws it. */
+  --bf-helix:  var(--bf-magenta);
+  --bf-sheet:  var(--bf-cyan);
+  --bf-coil:   #6B7C93;
+
+  --bf-radius: 12px;
+  --bf-radius-pill: 999px;
+  --bf-max: 1100px;
+
+  /* Inter for UI, Roboto Mono for readouts and numbers: the closest web equivalents to the
+     app's system font under the house rules. Apple's SF is not licensed for the web, so
+     this is close rather than identical, and PLAN section 13 says so. */
+  --bf-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bf-mono: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  color-scheme: dark;
+}
+
+/* The app is dark and only dark. A light variant would not be the app, and the
+   resemblance is the requirement, so this commits to one look and paints it explicitly
+   rather than borrowing the viewer's. */
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: linear-gradient(180deg, var(--bf-ground) 0%, var(--bf-ground) 60%,
+                              var(--bf-ground-deep) 100%);
+  background-attachment: fixed;
+  color: var(--bf-text-3);
+  font-family: var(--bf-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--bf-pale-blue); text-decoration: none; }
+a:hover { color: var(--bf-cyan); text-decoration: underline; }
+
+.wrap { max-width: var(--bf-max); margin: 0 auto; padding: 0 20px; }
+
+/* ---------------------------------------------------------------- the house header ---
+   Structure is mandatory and comes from the marcs-vibe-coding skill: amber logo dot,
+   "Marc C. Deller, D.Phil." linking to marcdeller.com, a contact link, sticky, never
+   overlapping content. The same skill says the header takes the app's own palette rather
+   than the default blue, so it sits on --bf-ground with --bf-action accents. The dot stays
+   #FCB900, which happens to be both the skill's amber and PhoneFold's. */
+
+.site-header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(11, 10, 31, 0.86);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.site-header .wrap {
+  display: flex; align-items: center; gap: 14px;
+  min-height: 56px; flex-wrap: wrap;
+}
+.logo-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--bf-amber); flex: 0 0 auto;
+  box-shadow: 0 0 12px rgba(252, 185, 0, 0.55);
+}
+.site-header .who { color: var(--bf-text-1); font-weight: 600; font-size: 15px; }
+.site-header .who:hover { color: var(--bf-cyan); }
+.site-header .spacer { flex: 1 1 auto; }
+.site-header .header-link { color: var(--bf-text-2); font-size: 14px; }
+.site-header .header-link:hover { color: var(--bf-cyan); }
+.site-header .shop-link { color: var(--bf-action); font-weight: 600; font-size: 14px; }
+.site-header .shop-link:hover { color: var(--bf-cyan); }
+
+/* ---------------------------------------------------------------- title block -------
+   The protein name as a large title, and directly beneath it in amber the engine
+   disclosure line. Exactly where the phone app puts it: in the frame, not in an About
+   page. PLAN section 7. */
+
+.title-block { padding: 26px 0 14px; }
+.protein-name {
+  font-size: clamp(28px, 6vw, 44px); line-height: 1.1;
+  font-weight: 700; color: var(--bf-text-1); margin: 0;
+  letter-spacing: -0.02em;
+}
+.protein-sub { color: var(--bf-text-2); font-size: 15px; margin: 6px 0 0; }
+.disclosure {
+  color: var(--bf-amber); font-size: 14px; margin: 10px 0 0;
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- pills -------------- */
+
+.pill-rows { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 18px; }
+.pill-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pill-row > .label {
+  color: var(--bf-text-2); font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.08em; min-width: 74px;
+}
+.segmented {
+  display: inline-flex; background: var(--bf-ground-raised);
+  border-radius: var(--bf-radius-pill); padding: 3px; gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.segmented button {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--bf-text-3); font: 500 13px/1 var(--bf-sans);
+  padding: 8px 14px; border-radius: var(--bf-radius-pill);
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+.segmented button:hover:not([aria-pressed="true"]) { color: var(--bf-text-1); }
+.segmented button[aria-pressed="true"] { background: var(--bf-action); color: #fff; }
+.segmented button[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------- the stage ---------- */
+
+.stage-wrap {
+  position: relative; background: var(--bf-stage);
+  border-radius: var(--bf-radius); overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  /* Roughly the lower half of the viewport on a phone; capped so a desktop does not get a
+     stage taller than the screen. */
+  height: clamp(320px, 52vh, 560px);
+  touch-action: none;   /* drag orbits the structure; it must not scroll the page */
+}
+.stage-wrap canvas { display: block; width: 100%; height: 100%; }
+
+/* The persistent engine badge. Small, in a corner, always visible while anything plays,
+   and it never scrolls away while the animation runs. PLAN section 7. */
+.stage-badge {
+  position: absolute; left: 12px; bottom: 12px;
+  background: rgba(5, 4, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--bf-radius-pill);
+  padding: 6px 12px; font: 500 12px/1.3 var(--bf-mono);
+  color: var(--bf-text-3); max-width: calc(100% - 24px);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.stage-badge .engine { color: var(--bf-amber); }
+.stage-badge .where { color: var(--bf-text-2); }
+
+.stage-hint {
+  position: absolute; right: 12px; bottom: 12px;
+  font: 500 11px/1 var(--bf-mono); color: var(--bf-text-2);
+  opacity: 0.7; pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- readouts ------------ */
+
+.readouts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 2px; margin: 2px 0 0;
+  background: rgba(255, 255, 255, 0.04); border-radius: 0 0 var(--bf-radius) var(--bf-radius);
+  overflow: hidden;
+}
+.readout { background: var(--bf-ground); padding: 10px 12px; }
+.readout .k {
+  display: block; color: var(--bf-text-2); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.09em;
+}
+.readout .v {
+  display: block; font-family: var(--bf-mono); font-size: 17px;
+  color: var(--bf-text-1); font-variant-numeric: tabular-nums; margin-top: 2px;
+}
+.readout .v.helix { color: var(--bf-helix); }
+.readout .v.sheet { color: var(--bf-sheet); }
+.readout .v.coil  { color: var(--bf-coil); }
+
+/* ---------------------------------------------------------------- charts -------------- */
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+@media (max-width: 620px) { .charts { grid-template-columns: 1fr; } }
+.chart {
+  background: var(--bf-ground-raised); border-radius: var(--bf-radius);
+  padding: 10px 12px 6px; border: 1px solid rgba(255, 255, 255, 0.04);
+}
+.chart h3 {
+  margin: 0 0 6px; font: 500 11px/1 var(--bf-sans); color: var(--bf-text-2);
+  text-transform: uppercase; letter-spacing: 0.09em;
+}
+.chart canvas { display: block; width: 100%; height: 72px; }
+.chart .legend { font: 500 10px/1.4 var(--bf-mono); color: var(--bf-text-2); }
+.chart .legend .h { color: var(--bf-helix); }
+.chart .legend .e { color: var(--bf-sheet); }
+.chart .legend .c { color: var(--bf-coil); }
+
+/* ---------------------------------------------------------------- transport ----------- */
+
+.transport {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 16px 0 8px;
+}
+.play {
+  appearance: none; border: 0; cursor: pointer;
+  background: var(--bf-action); color: #fff;
+  font: 600 15px/1 var(--bf-sans);
+  padding: 13px 26px; border-radius: var(--bf-radius-pill);
+  min-width: 116px;
+}
+.play:hover { filter: brightness(1.12); }
+.play:active { filter: brightness(0.94); }
+.seek { flex: 1 1 200px; min-width: 160px; accent-color: var(--bf-action); }
+.frame-count {
+  font-family: var(--bf-mono); font-size: 13px; color: var(--bf-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- gallery ------------- */
+
+.section-head {
+  display: flex; align-items: baseline; gap: 12px; margin: 34px 0 12px;
+}
+.section-head h2 {
+  margin: 0; font-size: 20px; color: var(--bf-text-1); font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.section-head .note { color: var(--bf-text-2); font-size: 13px; }
+
+.gallery {
+  display: flex; gap: 12px; overflow-x: auto; padding: 4px 0 14px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.card {
+  flex: 0 0 190px; scroll-snap-align: start;
+  background: var(--bf-ground-raised); border-radius: var(--bf-radius);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 14px; cursor: pointer; text-align: left;
+  appearance: none; color: inherit; font: inherit;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.14); }
+.card[aria-pressed="true"] { border-color: var(--bf-action); box-shadow: 0 0 0 1px var(--bf-action); }
+.card .name { display: block; color: var(--bf-text-1); font-weight: 600; font-size: 15px; }
+.card .sub {
+  display: block; color: var(--bf-text-2); font-size: 12px; margin-top: 4px;
+  font-family: var(--bf-mono);
+}
+.card .quality {
+  display: block; color: var(--bf-text-4); font-size: 11px; margin-top: 8px;
+  font-family: var(--bf-mono);
+}
+
+/* ---------------------------------------------------------------- honesty ------------- */
+
+.honesty {
+  margin: 30px 0; padding: 18px 20px;
+  background: var(--bf-ground-raised); border-radius: var(--bf-radius);
+  border-left: 3px solid var(--bf-amber);
+  color: var(--bf-text-3); font-size: 15px;
+}
+.honesty p { margin: 0; }
+
+/* ---------------------------------------------------------------- footer -------------- */
+
+.site-footer {
+  margin-top: 42px; padding: 26px 0 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--bf-text-2); font-size: 13px;
+}
+.site-footer .joke { color: var(--bf-text-4); font-style: italic; }
+
+/* ---------------------------------------------------------------- utilities ----------- */
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+.no-wasm-note {
+  display: none; color: var(--bf-magenta); font-size: 13px; margin-top: 8px;
+}
+body.no-wasm .no-wasm-note { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
+}
