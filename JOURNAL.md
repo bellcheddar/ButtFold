@@ -265,3 +265,47 @@ helix reads as a coiled tube rather than as the app's flat helical ribbon and ar
 strand. Noted alongside it, because it may be half of what Marc saw: the default fold is
 trp-cage, which is helix and coil only and has **no sheet at all**, so the cyan never
 appears until you pick protein G or ubiquitin.
+
+### Public, and the camera fixed
+
+Four things from Marc, all done.
+
+**The repo is public** at `github.com/bellcheddar/ButtFold`, with the README to the house
+standard and the Elementor pages forged. The badge row is sixteen deep and every badge was
+fetched back and checked for what it actually rendered, because shields.io returns 200 for
+an unknown `logo=` and silently drops it; one badge had a literal space in the label and
+failed as a URL error rather than as a bad badge. Versions came off the droplet that serves
+it, not the `>=` floors. Before publishing, the committed blobs were scanned rather than the
+working tree, since `grep -r` here honours .gitignore and would skip exactly what matters.
+
+**Drag to rotate**, which Marc reported as not behaving like the app. It was not dead: a
+synthetic drag moved the camera. It was the same bug PhoneFold's own source describes having
+fixed - yaw and pitch with the pitch clamped to protect an orbit's up vector, which makes a
+vertical drag die mid-gesture after about 223 points. ButtFold had the identical clamp at
++/-1.35 rad. `StageCamera.js` is now a port of `StageCamera.swift`: a quaternion attitude on
+the subject with a fixed camera on +Z, so there is no pole to protect. Its other behaviours
+came with it - the orbit resumes 8 s after a gesture rather than never, a 2 s input timeout
+closes a gesture whose end was never announced, and the Mac gets scroll-wheel zoom and
+double-click to reframe.
+
+Two tests, deliberately: the model without a browser, and real pointer input through the
+DevTools protocol. A camera with a perfect model and no listener attached passes every unit
+test and does nothing when you drag it, and that is the half that was broken.
+
+**The charts moved beside the viewer.** Two things had to be measured rather than reasoned
+about. The readout labels were long enough to wrap to a second row, which cost 57 px and put
+the transport back below the fold. And the chart canvases had an auto flex basis, so their
+own intrinsic size - which the drawing code sets from their measured size - fed back into
+their height and the column grew past the stage every layout.
+
+**One nginx bug worth keeping.** The screenshot served as `application/octet-stream`, because
+a `types` block inside a location REPLACES nginx's whole MIME table rather than adding to it:
+the same trap as `add_header`, one level up. The stock `mime.types` already maps `.wasm`, so
+the block should never have existed. `deploy.sh` now asserts a second content type from a
+different family, because checking only the one the block was written for is exactly how it
+went unnoticed.
+
+One mistake of my own: I ran a command from the wrong directory and committed ButtFold's
+LICENSE, THIRD-PARTY.md and journal into mdeller-landing with `git add -A`, which is the one
+thing Marc has explicitly asked me not to use. Caught before pushing, reset, and the launcher
+repo took only its own `apps.json` change.

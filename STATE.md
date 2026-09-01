@@ -200,7 +200,7 @@ back to PhoneFold alone.
 | 6.3 | Certbot certificate, and the nginx 1.24 http2 listen-line patch | done |
 | 6.4 | Launcher entry at the top of `apps.json`, status `building` | done |
 | 6.5 | `LICENSE` (MIT) and `THIRD-PARTY.md` | done |
-| 6.6 | README to the house standard | todo |
+| 6.6 | README to the house standard, Elementor pages, public repo | done |
 
 **Exit gate (machine): met.** Verified from outside: the deployed version string, a route
 added in this deploy, the disclosure paragraph in the live HTML, `no-cache` on the HTML and
@@ -217,17 +217,28 @@ file nobody expects.
 
 Marc's, 2026-09-01, after seeing it live. He will guide the first item.
 
+- [x] **The repo is public**, at `github.com/bellcheddar/ButtFold`, with the README to the
+      house standard, the Elementor pages forged and `THIRD-PARTY.md` carrying the
+      provenance. Sixteen badges, every one fetched back and checked for what it actually
+      rendered, with versions read off the droplet rather than the `>=` floors.
+- [x] **The launcher entry is `live`**, at the top, with the same green bullet and undimmed
+      text as the rest.
+- [x] **Drag to rotate**, fixed by porting `StageCamera.swift`. The old yaw/pitch camera had
+      the same clamp PhoneFold's once did, which kills a vertical drag mid-gesture. Scroll
+      zoom, pinch and double-click-to-reframe came with it.
+- [x] **The charts sit beside the viewer**, which keeps about 60% of the width, and the Play
+      bar is above the fold at four common screen sizes.
 - [ ] **Cartoon secondary structure.** The ribbon is a plain tube along the CA trace, so a
       helix reads as a coiled tube and a strand as a straight one. The app draws a proper
-      cartoon: a flat helical ribbon and an arrowed strand. This is the biggest visual gap.
-- [ ] **The helix and strand colours are not reading as the app's.** Worth noting that the
-      default fold, trp-cage, is helix and coil only and has **no sheet at all**, so the
-      cyan never appears on first load. Protein G and ubiquitin show both. Whether the fix
-      is the default protein, the palette or the geometry is Marc's call.
-- [ ] Flip the launcher entry from `building` to `live` once Marc is happy.
-- [ ] The two P0-2 browser rows, deferred: Safari's protein G time and mobile Safari.
+      cartoon: a flat helical ribbon and an arrowed strand. **This is the biggest remaining
+      visual gap and Marc is guiding it.**
+- [ ] **The helix and strand colours.** Worth noting before changing anything: the default
+      fold, trp-cage, is helix and coil only and has **no sheet at all**, so the cyan never
+      appears on first load. Ubiquitin and protein G show both, which is why the README
+      screenshot uses ubiquitin. Whether the fix is the default protein, the palette or the
+      geometry is Marc's call.
+- [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.
-- [ ] README to the house standard, via the `marcs-vibe-coding` skill.
 - [ ] Flip PhoneFold's `app_store_url` in `static/links.json` when it clears review, and
       verify the badge in the served page.
