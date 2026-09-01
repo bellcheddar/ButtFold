@@ -24,7 +24,7 @@
  *          steps, frames, params }
  *        { type: 'cancel' }
  *   out  { type: 'ready' }
- *        { type: 'frame', index, frame, step, steps }
+ *        { type: 'frame', index, frame, step, steps, angstromsPerUnit, occupiedUnits }
  *        { type: 'done', foldId, seconds, q, frames }
  *        { type: 'error', message }
  */
@@ -32,58 +32,14 @@
 import createGoModel from '../wasm/go_model.mjs';
 import { LiveScale, buildFrame, centre, maxAbs, newTrajectoryState, roundHalfToEven }
   from './frames.js';
+// Shared with the main thread, which runs the same two functions over the coordinates the
+// droplet streams back. One definition of a native contact, for the same reason there is
+// one frame builder.
+import { nativeContacts, perResidueNativeFraction } from './native_contacts.js';
 
 let modulePromise = null;
 const loadModule = () => (modulePromise ??= createGoModel());
 let cancelled = false;
-
-/** Native contact pairs and their reference distances, from the native structure.
- *
- * The same definition the C uses when it builds the model: |i-j| >= minSep and a native
- * CA-CA distance under the cutoff. Recomputed here rather than asked of the module, because
- * the module reports only the chain-wide fraction and the sonifier needs it per residue. */
-function nativeContacts(native, cutoff, minSep) {
-  const n = native.length / 3;
-  const pairs = [];
-  for (let i = 0; i < n; i++) {
-    for (let j = i + minSep; j < n; j++) {
-      const dx = native[3 * j] - native[3 * i];
-      const dy = native[3 * j + 1] - native[3 * i + 1];
-      const dz = native[3 * j + 2] - native[3 * i + 2];
-      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (d < cutoff) pairs.push([i, j, d]);
-    }
-  }
-  return pairs;
-}
-
-/**
- * Per-residue native fraction, on a 0 to 100 scale: the confidence the sonifier reads.
- *
- * A residue with no native contacts of its own takes the chain's overall value, because
- * 0/0 is not 0. A flexible terminus or a residue on a convex surface can have no long-range
- * partners at all, and scoring those zero would paint them as permanently unfolded even in
- * the native structure. Measured on the launch gallery: 5 of ubiquitin's 76 residues take
- * that branch, so it is not dead code.
- */
-function perResidueNativeFraction(points, pairs, n, tolerance = 1.2) {
-  const formed = new Float64Array(n);
-  const total = new Float64Array(n);
-  let close = 0;
-  for (const [i, j, sigma] of pairs) {
-    total[i]++; total[j]++;
-    const dx = points[3 * j] - points[3 * i];
-    const dy = points[3 * j + 1] - points[3 * i + 1];
-    const dz = points[3 * j + 2] - points[3 * i + 2];
-    if (Math.sqrt(dx * dx + dy * dy + dz * dz) < tolerance * sigma) {
-      formed[i]++; formed[j]++; close++;
-    }
-  }
-  const overall = pairs.length ? close / pairs.length : 0;
-  const out = new Float64Array(n);
-  for (let i = 0; i < n; i++) out[i] = (total[i] > 0 ? formed[i] / total[i] : overall) * 100;
-  return { confidence: out, q: overall };
-}
 
 self.onmessage = async (event) => {
   const message = event.data;
@@ -132,7 +88,13 @@ self.onmessage = async (event) => {
       const { confidence, q } = perResidueNativeFraction(points, pairs, n);
       const frame = buildFrame(points, units, state.tracker, state.smoother, confidence);
       frame.q = roundHalfToEven(q * 1000);
-      self.postMessage({ type: 'frame', index: index++, frame, step, steps });
+      // The ruler travels WITH the frame. `LiveScale` can only be read after the fold in
+      // the artefact, and the stage needs Angstroms per unit to size the cartoon's cross
+      // sections: without this every live frame was drawn against whatever ruler the
+      // previously loaded gallery entry happened to have, up to 1.45x out.
+      self.postMessage({ type: 'frame', index: index++, frame, step, steps,
+                         angstromsPerUnit: scale.angstromsPerUnit,
+                         occupiedUnits: scale.occupiedUnits });
       return q;
     };
 

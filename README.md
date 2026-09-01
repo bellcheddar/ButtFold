@@ -47,13 +47,21 @@ byte-identical frame objects, which is tested rather than asserted.
 
 | | What it is | Compute | When it runs |
 |---|---|---|---|
-| **Gallery** | Six folds precomputed on a Mac and served flat | none | Always. First paint, no capability check, no wait |
+| **Gallery** | Six precomputed folds | none | Always. First paint, no capability check, no wait |
 | **Fold it live** | The same C compiled to WebAssembly, in a Web Worker | your CPU | The primary interactive path where the browser can run it |
 | **On the server** | The same C compiled natively, one job at a time | droplet, bounded | The fallback, and anything too heavy for a phone |
 
 A fold the server computes is baked into the gallery's own artefact format, so a queued result
 plays through the identical player with no code path of its own, and converges the cache: a
 protein folded once is served from disk forever after.
+
+**Both computed paths are watched as they happen**, which for the server means the browser reads
+the coordinate file the droplet is still writing to. Progress there was a percentage over a still
+picture: the droplet folded for half a minute while a number climbed, and the same protein folding
+in the browser beside it turned and collapsed the whole time. The frames were already on disk, so
+the route serves what is there and the browser runs the same `frames.js` over it that the live
+worker runs on its own output. The secondary-structure and radius-of-gyration charts are drawn a
+frame at a time from either source.
 
 ## 🎹 How a trajectory becomes music
 
@@ -122,12 +130,12 @@ matter here are the ones where every unit test passes and the page does nothing.
 | Gate | What it proves |
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
-| pytest, 51 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
-| `node --test`, 26 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, and the camera's interaction model |
+| pytest, 60 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
+| `node --test`, 39 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |
 | sound | The score reaches a **running** `AudioContext` from a real click, and the animation follows the audio clock |
-| live fold, and the queue | A browser folds trp-cage to Q >= 0.95, and the droplet returns a fold and then serves it from cache |
+| live fold, and the queue | A browser folds trp-cage to Q >= 0.95, and the droplet returns a fold and then serves it from cache. Both must be seen mid-fold: at least three distinct frame counts while the status still reads "folding", with the charts carrying a point per frame |
 
 Two assertions run at bake time and are repeated against the committed file, because they are the
 ones that catch a trajectory which is not doing the thing the animation is about: the chain must

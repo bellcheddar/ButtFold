@@ -109,7 +109,7 @@ export class Stage {
     // The distance still comes from the viewport in _fitCamera, because the artefact
     // quantises every trajectory into the same +/-1000 box but the RIGHT distance depends
     // on the stage's aspect: one tuned on a wide desktop stage crops a tall phone one.
-    this.halfExtent = 1000;      // the artefact's quantisedRange
+    this.halfExtent = 1000;      // the artefact's quantisedRange, until told otherwise
     this.control = new StageCamera(3200);   // distance replaced by _fitCamera on first resize
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -300,6 +300,21 @@ export class Stage {
   spin(deltaSeconds) {
     this.control.advance(deltaSeconds);
     this._applyOrbit();
+  }
+
+  /** How far out this trajectory actually reaches, in quantised units.
+   *
+   * A baked artefact is scaled so its widest frame touches exactly the quantised range, so
+   * the default is right for it and nothing needs to call this. A fold that is still
+   * arriving cannot know its widest frame yet and reserves headroom it may never use, so it
+   * says how much of the box it has really filled and the camera frames that. Without it
+   * the same protein was drawn a third smaller while it streamed than after it landed.
+   */
+  setViewExtent(units) {
+    const extent = Math.max(units || 0, 1);
+    if (extent === this.halfExtent) return;
+    this.halfExtent = extent;
+    this._fitCamera();
   }
 
   /* The camera distance at which a sphere of radius halfExtent fits both dimensions of

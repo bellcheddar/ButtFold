@@ -15,6 +15,7 @@ gallery needs is here.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from flask import Flask, jsonify, make_response, render_template, request, send_from_directory
@@ -183,6 +184,12 @@ _queue = jobs.JobQueue(QUEUE_DB)
 
 # Frames the queue's fold will produce, which is what a progress bar is measured against.
 QUEUED_FRAME_COUNT = 301
+# ...and how many of them survive into the artefact. The binary is run at twice the cap and
+# the baker keeps an evenly spaced half. A browser watching a fold as it happens sees the
+# RAW stream, so it needs both numbers to pick the same frames the artefact will keep; told
+# only the total it would show 301 frames and then be replaced by 150. Pinned against the
+# baker's own constants by tests/test_queue.py rather than kept in step by hand.
+QUEUED_FRAME_CAP = 150
 
 
 def client_key() -> str:
@@ -235,24 +242,102 @@ def api_queue_submit():
     return jsonify(body), (200 if job.get("cached") else 202)
 
 
+# The stream the C binary writes: two little-endian int32 (n, frames) then float32 xyz
+# triples. Bytes map to frames exactly, which is what makes both the progress figure and the
+# frame route below readings of the file itself rather than of anything the worker says.
+FRAME_HEADER_BYTES = 8
+
+
+def _job_stream(job_id: str) -> tuple[Path, int] | None:
+    """The growing frame file for a job, and its bytes per frame.
+
+    `job_id` reaches this from the URL, so it is checked against the shape the queue
+    actually mints - a sha256 hex digest - rather than pasted into a path. Nothing in the
+    queue would produce a `..`, but nothing in the queue is what a route is defending
+    against.
+    """
+    if not re.fullmatch(r"[0-9a-f]{8,64}", job_id):
+        return None
+    status = _queue.status(job_id)
+    if status is None:
+        return None
+    path = WORK_DIR / job_id / "frames.bin"
+    try:
+        record = json.loads(
+            (REPO / "data" / "natives" / f"{status['protein_id']}.json").read_text())
+        per_frame = record["residueCount"] * 3 * 4
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+    return (path, per_frame) if per_frame else None
+
+
+@app.route("/api/queue/<job_id>/frames")
+def api_queue_frames(job_id: str):
+    """The coordinates written SO FAR, raw, so a queued fold can be watched as it happens.
+
+    Without this the server path was a percentage over a still picture: the droplet folded
+    for half a minute and the visitor saw a number climb, while the same protein folding in
+    the browser turned and collapsed in front of them. Two engines, and only one of them
+    looked like anything. The frames are already on disk - the progress figure above is a
+    reading of this same file's length - so streaming them is a matter of serving what is
+    there rather than computing anything new.
+
+    Deliberately raw Angstroms, not the finished artefact: the browser runs `frames.js`
+    over them, which is the same builder the baker and the live worker use, so a frame
+    watched mid-fold and the frame that arrives in the finished artefact are made the same
+    way. The finished artefact still replaces the lot when the job is done, because THAT is
+    the canonical result and this is a preview of it.
+    """
+    stream = _job_stream(job_id)
+    if stream is None:
+        return jsonify({"error": f"no job {job_id!r}"}), 404
+    path, per_frame = stream
+    try:
+        start = int(request.args.get("from", 0))
+    except ValueError:
+        return jsonify({"error": "'from' must be a frame index"}), 400
+    if start < 0:
+        return jsonify({"error": "'from' must be a frame index"}), 400
+
+    payload = b""
+    available = 0
+    if path.exists():
+        try:
+            # Read the size ONCE and never past it. The worker is appending while this
+            # runs, so a read that trusted a second stat could return a torn final frame:
+            # half of one step's coordinates and half of the next's, which is a structure
+            # that never existed.
+            size = path.stat().st_size
+            available = max(0, (size - FRAME_HEADER_BYTES) // per_frame)
+            if start < available:
+                with path.open("rb") as handle:
+                    handle.seek(FRAME_HEADER_BYTES + start * per_frame)
+                    payload = handle.read((available - start) * per_frame)
+                    payload = payload[: len(payload) // per_frame * per_frame]
+        except OSError:
+            payload = b""
+
+    response = app.response_class(payload, mimetype="application/octet-stream")
+    response.headers["X-Frames-From"] = str(start)
+    response.headers["X-Frames-Count"] = str(len(payload) // per_frame)
+    response.headers["X-Frames-Available"] = str(available)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.route("/api/queue/<job_id>")
 def api_queue_status(job_id: str):
     """Progress, read from the growing frame file's SIZE.
 
-    The stream format is two little-endian int32 (n, frames) then float32 xyz triples, so
-    bytes map to frames exactly and a byte count is an exact progress figure. Parsing the
+    Bytes map to frames exactly, so a byte count is an exact progress figure. Parsing the
     binary's stdout for progress would be a second, lossier source of the same fact.
     """
     frames_done = None
-    work = (WORK_DIR / job_id / "frames.bin")
-    if work.exists():
+    stream = _job_stream(job_id)
+    if stream is not None and stream[0].exists():
         try:
-            size = work.stat().st_size
-            record = json.loads((REPO / "data" / "natives"
-                                 / f"{_queue.status(job_id)['protein_id']}.json").read_text())
-            per_frame = record["residueCount"] * 3 * 4
-            frames_done = max(0, (size - 8) // per_frame) if per_frame else 0
-        except (OSError, KeyError, TypeError):
+            frames_done = max(0, (stream[0].stat().st_size - FRAME_HEADER_BYTES) // stream[1])
+        except OSError:
             frames_done = None
 
     status = _queue.status(job_id, frames_done=frames_done)
@@ -264,6 +349,7 @@ def api_queue_status(job_id: str):
         "position": status["position"],
         "frames_done": status["frames_done"],
         "frames_total": status["frames_total"],
+        "frame_cap": QUEUED_FRAME_CAP,
         "protein_id": status["protein_id"],
         "seed": status["seed"],
         "error": status["error"],

@@ -245,6 +245,23 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       runs with a warm cache, which is the only way to see it.
 - [x] **The launcher beacon points at a path the page actually fetches.** It named
       `gallery.json`, which is read server-side and never requested by a browser.
+- [x] **Both computed engines are watched as they fold.** The live path streamed frames but
+      built its chart history once, from its single first frame, and found it non-empty ever
+      after: the two charts drew the same two points for the whole fold. It also dropped
+      `conf` and `ssConf` on the way in, so the cartoon had no certainty to sweep and every
+      residue drew as coil until the finished trajectory was adopted and the ribbons appeared
+      all at once. The server path streamed nothing at all - a percentage over a still
+      picture - and now serves the coordinate file it is still writing, which the browser
+      turns into frames with the same builder. Three things had to be right for the handoff
+      to the finished artefact to be invisible: the preview keeps the same frames the baker
+      keeps (`np.linspace(0, 300, 150).round()`, ported and tested against numpy), the camera
+      frames what the trajectory occupies rather than the quantised box, and a batch of
+      frames arriving together is drawn once.
+- [x] **`static/js/package.json` declares what those modules already are.** Without it node
+      infers CommonJS from the file extension and refuses the first `export` it meets, so the
+      whole JS suite passed or failed depending on which node was first on PATH - and the
+      only one on this Mac's PATH is CCP4's v16. Scoped to that directory rather than the
+      repo root, where it would also reclassify emscripten's generated CommonJS CLI.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

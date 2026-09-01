@@ -12,6 +12,11 @@
 
 import { Stage, COLOUR_MODES } from './stage.js';
 import { runLengthDecode } from './PSEA.js';
+// The droplet streams raw Angstroms and the frames are built HERE, with the same builder the
+// baker and the live worker use. Three engines, one definition of a frame.
+import { LiveScale, buildFrame, centre, maxAbs, newTrajectoryState, roundHalfToEven,
+         keptFrameIndices, QUANTISED_RANGE } from './frames.js';
+import { nativeContacts, perResidueNativeFraction } from './native_contacts.js';
 import { score, compaction } from './Sonifier.js';
 import { FoldAudio } from './audio.js';
 
@@ -68,7 +73,7 @@ class Player {
     this.styles = {};
     this.scored = null;
     this.worker = null;
-    this.liveFrames = [];
+    this.streamedFrames = [];
     this.liveSupported = detectLiveSupport();
     // A different seed each time the server is asked, so "fold it again" is a genuinely
     // different trajectory rather than a cache hit that looks like a very fast fold. The
@@ -145,6 +150,10 @@ class Player {
     this.contactsSoFar = 0;
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.stage.setResidueCount(fold.residueCount, fold.angstromsPerUnit);
+    // A finished artefact is scaled so its widest frame touches the edge of the box, so the
+    // box IS the extent. Set explicitly because the fold before this one may have been a
+    // stream, which frames on less than the box.
+    this.stage.setViewExtent(QUANTISED_RANGE);
     this.stage.setSequence(fold.sequence);
 
     $('protein-name').textContent = fold.name;
@@ -214,6 +223,7 @@ class Player {
     this.audio.stop();
     $('play').textContent = 'Play';
     this.worker?.postMessage({ type: 'cancel' });
+    this.queuedStream = null;
     this._status('asking', 'queued');
 
     const response = await fetch('/api/queue', {
@@ -224,7 +234,6 @@ class Player {
     const body = await response.json().catch(() => ({}));
 
     if (response.status === 429) {
-      // Not an error: it is the cap doing its job, and the gallery is right there.
       // Not an error: it is the cap doing its job, and the gallery is right there.
       this._status(`queue full, try again shortly`);
       $('audio-note').textContent = body.error;
@@ -245,33 +254,142 @@ class Player {
 
   _pollQueue(jobId) {
     clearInterval(this._queueTimer);
-    this._queueTimer = setInterval(async () => {
-      let status;
+    // 750 ms rather than the 2 s this used while it was polling a percentage. The droplet
+    // writes about six frames a second under its CPU quota, so a tick brings four or five
+    // and the structure turns and collapses at something close to the rate it is being
+    // computed at. Each pull is a few kilobytes of coordinates the server has already
+    // written to disk.
+    this._queueTimer = setInterval(() => {
+      // A tick now fetches frames as well as status, and a slow one must not have a second
+      // started on top of it: two overlapping pulls would both ask from the same frame
+      // index and each append the answer, so the trajectory would contain every frame
+      // twice.
+      if (this._queueTicking) return;
+      this._queueTicking = true;
+      this._queueTick(jobId).finally(() => { this._queueTicking = false; });
+    }, 750);
+  }
+
+  async _queueTick(jobId) {
+    let status;
+    try {
+      const response = await fetch(`/api/queue/${jobId}`);
+      status = await response.json();
+    } catch (err) {
+      this._status(`lost contact: ${err.message}`);
+      clearInterval(this._queueTimer);
+      return;
+    }
+
+    if (status.state === 'queued') {
+      // The badge already says "on the server", so the status says only what is new.
+      this._status(`queued, position ${status.position} of one at a time`);
+      return;
+    }
+
+    if (status.state === 'running') {
       try {
-        const response = await fetch(`/api/queue/${jobId}`);
-        status = await response.json();
+        if (!this.queuedStream) await this._openQueuedStream(status);
+        await this._pullQueuedFrames(jobId);
       } catch (err) {
-        this._status(`lost contact: ${err.message}`);
-        clearInterval(this._queueTimer);
-        return;
+        // A stream that cannot be opened is not a fold that has failed. The job carries on
+        // on the droplet and its finished artefact still arrives, so this drops back to
+        // the percentage rather than throwing the fold away.
+        this.queuedStream = null;
+        console.warn('streaming the queued fold failed, falling back to progress', err);
       }
-      if (status.state === 'queued') {
-        // The badge already says "on the server", so the status says only what is new.
-        this._status(`queued, position ${status.position} of one at a time`);
-      } else if (status.state === 'running') {
-        // Progress is the growing frame file's byte count, which maps to frames exactly.
-        const percent = status.frames_total
-          ? Math.round(100 * status.frames_done / status.frames_total) : 0;
-        this._status(`folding, ${percent}%`);
-      } else if (status.state === 'done') {
-        clearInterval(this._queueTimer);
-        await this._loadQueuedResult(status.result_url);
-      } else {
-        clearInterval(this._queueTimer);
-        // Reported honestly, the timeout included. A job that was killed says so.
-        this._status(`${status.state}${status.error ? `: ${status.error}` : ''}`);
-      }
-    }, 2000);
+      const percent = status.frames_total
+        ? Math.round(100 * status.frames_done / status.frames_total) : 0;
+      this._status(this.frames.length
+        ? `folding, ${percent}% (${this.frames.length} frames)`
+        : `folding, ${percent}%`);
+      return;
+    }
+
+    clearInterval(this._queueTimer);
+    this.queuedStream = null;
+    if (status.state === 'done') {
+      // The finished artefact replaces the preview. It is the canonical result - scaled
+      // from the widest frame of the whole trajectory, which a stream cannot know until it
+      // ends - and adopting it is what gives the fold its sonification and its seek bar.
+      await this._loadQueuedResult(status.result_url);
+    } else {
+      // Reported honestly, the timeout included. A job that was killed says so.
+      this._status(`${status.state}${status.error ? `: ${status.error}` : ''}`);
+    }
+  }
+
+  /* Open a stream onto a job the droplet is running, so its trajectory appears here as it
+   * is computed rather than half a minute later.
+   *
+   * The server path used to be a percentage over a still picture: the droplet folded for
+   * twenty-five seconds while a number climbed, and the same protein folding in the browser
+   * beside it turned and collapsed the whole time. Two engines, and only one of them looked
+   * like anything was happening.
+   *
+   * What comes back is raw Angstroms, not finished frames, so the browser runs the same
+   * `frames.js` over them that the worker runs on its own output. Contacts, secondary
+   * structure and per-residue confidence are computed here, on this thread: 76 residues is
+   * a millisecond or so a frame and there are a few frames per tick. */
+  async _openQueuedStream(status) {
+    const response = await fetch(`/api/native/${encodeURIComponent(this.fold.id)}`);
+    if (!response.ok) throw new Error(`native ${this.fold.id}: HTTP ${response.status}`);
+    const native = await response.json();
+    const flat = Float64Array.from(native.ca.flat());
+    const n = flat.length / 3;
+    this.queuedStream = {
+      n,
+      // The same contact map the C built the model from, by the same rule.
+      pairs: nativeContacts(flat, native.params.cutoff, native.params.minSep),
+      state: newTrajectoryState(n),
+      // The raw indices the artefact will keep. Everything else is read off the wire and
+      // thrown away without being built, so the preview runs at the artefact's pace and
+      // ends on the same number of frames rather than halving when the result lands.
+      keep: keptFrameIndices(status.frames_total, status.frame_cap),
+      scale: null,
+      next: 0,
+    };
+    this.residueCount = n;
+    this.frames = [];
+    this.streamedFrames = [];
+    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.contactsSoFar = 0;
+  }
+
+  async _pullQueuedFrames(jobId) {
+    const stream = this.queuedStream;
+    if (!stream) return;
+    const response = await fetch(`/api/queue/${jobId}/frames?from=${stream.next}`);
+    if (!response.ok) return;
+    const raw = new Float32Array(await response.arrayBuffer());
+    const stride = stream.n * 3;
+    // The route only ever returns whole frames, but the floor is kept anyway: a torn frame
+    // is half of one step's coordinates and half of the next's, which is a structure that
+    // never existed, and it would be drawn without complaint.
+    const count = Math.floor(raw.length / stride);
+    const built = [];
+    for (let f = 0; f < count; f++) {
+      // Skipped before anything is computed: a dropped frame must not reach the contact
+      // tracker or the hysteresis either, or the preview's secondary structure would be
+      // smoothed over twice as many steps as the artefact's.
+      if (stream.keep && !stream.keep.has(stream.next + f)) continue;
+      // Float64 for the geometry, exactly as the worker does when it copies out of the
+      // module's float32 heap. Same builder, same widths, same frames.
+      const points = Float64Array.from(raw.subarray(f * stride, (f + 1) * stride));
+      const extent = maxAbs(centre(points));
+      stream.scale ??= new LiveScale(extent);
+      const units = stream.scale.accommodate(extent);
+      const { confidence, q } = perResidueNativeFraction(points, stream.pairs, stream.n);
+      const frame = buildFrame(points, units, stream.state.tracker, stream.state.smoother,
+                               confidence);
+      frame.q = roundHalfToEven(q * 1000);
+      built.push(frame);
+    }
+    stream.next += count;
+    for (let i = 0; i < built.length; i++) {
+      this._ingestFrame(built[i], stream.scale.angstromsPerUnit, stream.scale.occupiedUnits,
+                        i === built.length - 1);
+    }
   }
 
   async _loadQueuedResult(url) {
@@ -303,7 +421,7 @@ class Player {
 
     this.worker?.terminate();
     this.worker = new Worker(`${STATIC_BASE}/js/fold_worker.js`, { type: 'module' });
-    this.liveFrames = [];
+    this.streamedFrames = [];
     this.frames = [];
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this.contactsSoFar = 0;
@@ -361,28 +479,60 @@ class Player {
   }
 
   _acceptLiveFrame(message) {
-    const frame = message.frame;
-    this.frames.push({
-      points: Float32Array.from(frame.points),
-      ss: runLengthDecode(frame.ss),
-      newContacts: frame.newContacts,
-      rg: frame.rg / 10,
-      q: frame.q / 1000,
-    });
-    this.liveFrames.push(frame);
     // Drawn as it arrives: the fold IS the show, so a slow fold that streams frames is
     // content rather than a wait, and a progress bar over a blank stage would be the
     // opposite of the point.
-    this._show(this.frames.length - 1);
-    $('seek').max = String(this.frames.length - 1);
+    this._ingestFrame(message.frame, message.angstromsPerUnit, message.occupiedUnits);
     const percent = Math.round(100 * message.step / message.steps);
     this._status(`folding, ${percent}% (${this.frames.length} frames)`);
+  }
+
+  /* One frame from a source that streams: the live worker, or the droplet.
+   *
+   * Both call this, which is the point. A streamed frame reaches the stage through exactly
+   * the conversion `_adoptFold` gives a baked one, so what a visitor watches during a fold
+   * and what they play back afterwards are the same object built the same way. */
+  _ingestFrame(frame, angstromsPerUnit, occupiedUnits, draw = true) {
+    const decoded = {
+      points: Float32Array.from(frame.points),
+      ss: runLengthDecode(frame.ss),
+      newContacts: frame.newContacts,
+      // These two were dropped, and dropping them cost the live fold its cartoon. The
+      // ribbon's cross section is swept from `ssConf`, so with no certainty to sweep every
+      // residue drew as coil: a live fold was a wriggling string until the last frame, at
+      // which point `_finishLive` re-adopted the trajectory through the path above and the
+      // helices and sheets all appeared at once. `conf` is the other half, and without it
+      // the confidence colour mode painted the whole chain one flat below-fifty orange.
+      confidence: frame.conf?.length ? Float32Array.from(frame.conf, c => c / 100) : null,
+      ssConfidence: frame.ssConf?.length
+        ? Float32Array.from(frame.ssConf, c => c / 100) : null,
+      rg: frame.rg / 10,
+      q: frame.q / 1000,
+    };
+    this.frames.push(decoded);
+    this.streamedFrames.push(frame);
+    // BEFORE `_show`, which draws the charts from it. The whole point of a streamed fold is
+    // that the secondary structure and the radius of gyration are drawn as they happen.
+    this._appendHistory(decoded);
+    // A changed ruler rebuilds the mesh, so both of these are no-ops unless the scale
+    // actually moved, which `LiveScale` is built to make rare.
+    if (angstromsPerUnit) this.stage.setResidueCount(this.residueCount, angstromsPerUnit);
+    if (occupiedUnits) this.stage.setViewExtent(occupiedUnits);
+    // A batch of frames arriving together is drawn ONCE. The droplet delivers four or five
+    // per tick and they are ingested in a single task, so the browser composites after the
+    // last of them either way: drawing the first four is work whose result is overwritten
+    // before it can reach the screen. The live worker posts one frame per message and
+    // always draws.
+    if (draw) {
+      this._show(this.frames.length - 1);
+      $('seek').max = String(this.frames.length - 1);
+    }
   }
 
   _finishLive() {
     // The live fold becomes an ordinary fold: same frame objects, same player, same
     // sonifier. Nothing downstream knows where the frames came from.
-    this.fold = { ...this.fold, frames: this.liveFrames };
+    this.fold = { ...this.fold, frames: this.streamedFrames };
     this.history = { helix: [], sheet: [], coil: [], rg: [] };
     this._rescore();
     this._show(0);
@@ -468,20 +618,31 @@ class Player {
     // The charts are drawn from the whole trajectory, not from what has played, so seeking
     // backwards does not erase them and the shape of the fold is legible before you press
     // play. The playhead marks where you are.
+    //
+    // For a fold that ARRIVES a frame at a time this is filled in by `_appendHistory` as
+    // each frame lands, so the two charts draw themselves during the fold. The lazy build
+    // here is for a whole trajectory adopted at once, and it used to be the only one: a
+    // live fold built the history from its single first frame, found it non-empty ever
+    // after, and drew the same two points for the whole fold while the structure collapsed
+    // beside them.
     if (!this.history.rg.length) this._buildHistory();
     drawSSChart($('chart-ss'), this.history, this.index);
     drawRgChart($('chart-rg'), this.history.rg, this.index);
   }
 
   _buildHistory() {
-    for (const frame of this.frames) {
-      const n = frame.ss.length || 1;
-      const helix = count(frame.ss, 'H'), sheet = count(frame.ss, 'E');
-      this.history.helix.push(helix / n);
-      this.history.sheet.push(sheet / n);
-      this.history.coil.push((n - helix - sheet) / n);
-      this.history.rg.push(frame.rg);
-    }
+    for (const frame of this.frames) this._appendHistory(frame);
+  }
+
+  /** One frame's contribution to the two charts. The only place they are computed, so a
+   *  streamed fold and an adopted one plot the same quantity. */
+  _appendHistory(frame) {
+    const n = frame.ss.length || 1;
+    const helix = count(frame.ss, 'H'), sheet = count(frame.ss, 'E');
+    this.history.helix.push(helix / n);
+    this.history.sheet.push(sheet / n);
+    this.history.coil.push((n - helix - sheet) / n);
+    this.history.rg.push(frame.rg);
   }
 
   _loop(now) {

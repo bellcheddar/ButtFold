@@ -302,3 +302,89 @@ def test_clients_are_told_apart_by_the_forwarded_header(client):
     assert post(client, {"protein_id": "trp_cage", "seed": 1}, ip="1.1.1.1").status_code == 202
     assert post(client, {"protein_id": "ubiquitin", "seed": 1}, ip="1.1.1.1").status_code == 429
     assert post(client, {"protein_id": "ubiquitin", "seed": 1}, ip="2.2.2.2").status_code == 202
+
+
+def test_the_frame_route_streams_only_whole_frames(tmp_path, monkeypatch):
+    """A fold being watched must never be handed half of one step and half of the next.
+
+    The worker appends to this file while the route reads it, so the route reads the size
+    once and floors to a frame boundary. A torn frame is not a corrupt download that a
+    browser would notice: it is a plausible structure that never existed, drawn without
+    complaint.
+    """
+    import app as app_module
+
+    residues = 4
+    per_frame = residues * 3 * 4
+    work = tmp_path / "job"
+    work.mkdir()
+    # Two whole frames and a deliberately torn third.
+    payload = b"\x00" * 8 + b"\x01" * (per_frame * 2) + b"\x02" * (per_frame // 2)
+    (work / "frames.bin").write_bytes(payload)
+
+    monkeypatch.setattr(app_module, "WORK_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "_job_stream",
+                        lambda job_id: (work / "frames.bin", per_frame))
+    client = app_module.app.test_client()
+
+    whole = client.get("/api/queue/job/frames")
+    assert whole.status_code == 200
+    assert len(whole.data) == per_frame * 2, "the torn frame was served"
+    assert whole.headers["X-Frames-Count"] == "2"
+    assert whole.headers["Cache-Control"] == "no-store"
+
+    # Resuming from a frame index returns only what is new, which is what makes the client
+    # able to poll without re-reading and re-appending the whole trajectory.
+    rest = client.get("/api/queue/job/frames?from=1")
+    assert len(rest.data) == per_frame
+    assert rest.headers["X-Frames-From"] == "1"
+    # Past the end is empty, not an error: the client polls ahead of the worker constantly.
+    assert client.get("/api/queue/job/frames?from=99").data == b""
+
+
+def test_the_frame_route_refuses_a_job_id_that_is_not_one():
+    """`job_id` reaches the route from the URL and is used to build a path.
+
+    Nothing the queue mints could contain a traversal - they are sha256 digests - but a
+    route defends against what it is sent, not against what it expects.
+    """
+    import app as app_module
+    client = app_module.app.test_client()
+    for bogus in ["..", "../../etc", "NOTHEX", "abc!", ""]:
+        response = client.get(f"/api/queue/{bogus}/frames")
+        assert response.status_code in (404, 308), f"{bogus!r} was not refused"
+
+
+def test_the_frame_route_rejects_a_from_that_is_not_a_frame_index():
+    import app as app_module
+    client = app_module.app.test_client()
+    # 404 first, because the job does not exist; the point is that neither ever 500s.
+    for bad in ["-1", "banana", "1.5"]:
+        assert client.get(f"/api/queue/{'a' * 16}/frames?from={bad}").status_code in (400, 404)
+
+
+def test_the_published_frame_numbers_match_what_the_worker_will_actually_produce():
+    """The browser picks its preview frames from these two numbers.
+
+    They are constants in `app.py` because the queue route cannot import the baker's tools
+    module, so the thing that keeps them honest is this: the worker's own stride arithmetic,
+    run here, must produce what the route promises. A drift would not raise anything - the
+    preview would simply keep the wrong frames and change pace when the result landed.
+    """
+    import sys
+    sys.path.insert(0, str(REPO / "tools"))
+    import bake_gallery as baker
+
+    import app as app_module
+
+    assert app_module.QUEUED_FRAME_CAP == baker.FRAME_CAP
+
+    # The worker's arithmetic, verbatim from buttfold/worker.py, on the largest protein the
+    # cap admits: the raw frame count is one more than the number of strides, because the
+    # binary emits before its first step.
+    for n in (20, jobs.RESIDUE_CAP):
+        steps = baker.STEPS_PER_RESIDUE * n
+        stride = max(steps // (baker.FRAME_CAP * 2), 1)
+        assert steps // stride + 1 == app_module.QUEUED_FRAME_COUNT, (
+            f"{n} residues yields {steps // stride + 1} raw frames, but the route tells the "
+            f"browser {app_module.QUEUED_FRAME_COUNT}")

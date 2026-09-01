@@ -111,9 +111,18 @@ await evaluate(`document.querySelector('#engine-mode button[data-source="queued"
 // broken queue. The second click below uses the SAME seed and is therefore a guaranteed
 // cache hit, which is how the cache path gets tested deliberately rather than by accident.
 const seen = new Set();
+// Every sample taken while the droplet was still folding. The server path used to be a
+// percentage over a still picture, so what is being tested here is that it is not: that
+// frames arrived, and that the charts grew with them, DURING the fold rather than at the
+// end of it.
+const whileFolding = [];
 let state = null;
-for (let i = 0; i < 150; i++) {
-  await sleep(1000);
+// 300 ms, not a second. Two of the states this asserts on are transient: "queued" stands
+// only until the worker picks the job up, which on an idle droplet is under a second, and
+// the frame counts in between are the whole point. Sampling at a second was slow enough
+// that the queue position was missed and the test reported it as never having been shown.
+for (let i = 0; i < 500; i++) {
+  await sleep(300);
   state = await evaluate(`(() => {
     const p = window.buttfoldPlayer;
     return {
@@ -126,6 +135,11 @@ for (let i = 0; i < 150; i++) {
       badgeLine: document.querySelector('.stage-badge').textContent.replace(/\\s+/g, ' ').trim(),
       source: p.source,
       frames: p.frames.length,
+      // The two charts are drawn from this. Sampled alongside the frame count because the
+      // point of streaming is that they move TOGETHER: a history stuck at 1 while frames
+      // climbed was exactly the bug, and it is invisible in a screenshot of the finished
+      // fold because the finished artefact is adopted whole and plots correctly.
+      history: p.history.rg.length,
       q: p.frames.length ? p.frames[p.frames.length - 1].q : 0,
       rgFirst: p.frames.length ? p.frames[0].rg : 0,
       rgLast: p.frames.length ? p.frames[p.frames.length - 1].rg : 0,
@@ -138,6 +152,7 @@ for (let i = 0; i < 150; i++) {
     };
   })()`);
   seen.add(state.status.replace(/[0-9]+/g, 'N').split(',')[0]);
+  if (/^folding/.test(state.status)) whileFolding.push(state);
   if (/^folded in /.test(state.status)) break;
 }
 
@@ -174,7 +189,25 @@ console.log(`cache hit     seed ${cached.seed} returned in ${cacheSeconds.toFixe
             + `${cached.frames} frames`);
 if (logs.length) logs.forEach(l => console.log(`  [page] ${l}`));
 
+const streamed = whileFolding.filter(s => s.frames > 0);
+const distinctCounts = new Set(streamed.map(s => s.frames)).size;
+const lastStreamed = streamed[streamed.length - 1];
+console.log(`streamed      ${streamed.length} of ${whileFolding.length} samples carried `
+            + `frames, ${distinctCounts} distinct counts, `
+            + `up to ${lastStreamed ? lastStreamed.frames : 0} before the result landed`);
+
 const failures = [];
+// What Marc asked for: both engines show the plot data in real time. A queued fold that
+// only appears when it is finished passes every other assertion in this file.
+if (!(distinctCounts >= 3)) {
+  failures.push(`the queued fold did not stream: ${distinctCounts} distinct frame counts `
+                + 'seen while it was folding, want at least 3');
+}
+const desynced = streamed.filter(s => s.history !== s.frames);
+if (desynced.length) {
+  failures.push(`the charts lag the frames: ${desynced.length} samples where the Rg history `
+                + `had ${desynced[0].history} points for ${desynced[0].frames} frames`);
+}
 if (!/^folded in /.test(state.status)) {
   failures.push(`the queued fold never completed: "${state.status}"`);
 }

@@ -94,11 +94,13 @@ export function radiusOfGyration(points) {
 export class LiveScale {
   constructor(firstFrameExtent, headroom = 1.45) {
     this.halfExtent = Math.max(firstFrameExtent * headroom, 1e-6);
+    this.observedExtent = Math.max(firstFrameExtent, 1e-6);
     this.grewTimes = 0;
   }
 
   /** Accommodate a frame, growing if it does not fit. Returns units per Angstrom. */
   accommodate(extent) {
+    this.observedExtent = Math.max(this.observedExtent, extent);
     if (extent > this.halfExtent) {
       this.halfExtent = extent;
       this.grewTimes++;
@@ -107,6 +109,45 @@ export class LiveScale {
   }
 
   get angstromsPerUnit() { return this.halfExtent / QUANTISED_RANGE; }
+
+  /**
+   * How far out the widest frame SO FAR actually reaches, in quantised units.
+   *
+   * The headroom that keeps the scale from shrinking has a side effect on the picture: a
+   * baked trajectory is scaled so its widest frame touches exactly 1000, and a streamed one
+   * is scaled so its widest frame touches 1000/1.45. Frame the camera on the box in both
+   * cases and the same protein is drawn a third smaller while it streams, then jumps to
+   * full size the moment the finished artefact replaces it. The camera is framed on THIS
+   * instead, which is the same quantity in both cases, so it does not.
+   *
+   * Monotone by construction, like the scale itself: the view can widen as a trajectory
+   * turns out to need more room and can never close in, which would read as the camera
+   * chasing the collapse rather than the protein collapsing.
+   */
+  get occupiedUnits() {
+    return QUANTISED_RANGE * this.observedExtent / this.halfExtent;
+  }
+}
+
+/**
+ * Which raw frames survive into the artefact, as a Set of raw indices.
+ *
+ * The Go binary is run at twice the frame cap and the baker then keeps `cap` of its output,
+ * evenly spaced and always including the last, which is the folded structure the whole
+ * animation is heading towards. A fold being WATCHED as it is computed sees the raw stream,
+ * so without this it would show 301 frames and then be replaced by the artefact's 150: the
+ * seek bar would halve and the animation would change pace at the moment it finished.
+ *
+ * This is `np.linspace(0, total - 1, cap).round()` fed through `sorted(set(...))`, which is
+ * what `tools/bake_gallery.py` does, and tests/frame_selection.test.mjs runs the two against
+ * each other rather than trusting that they still agree.
+ */
+export function keptFrameIndices(total, cap) {
+  if (!(total > cap) || !(cap > 1)) return null;     // nothing is dropped
+  const kept = new Set();
+  const span = (total - 1) / (cap - 1);
+  for (let i = 0; i < cap; i++) kept.add(roundHalfToEven(i * span));
+  return kept;
 }
 
 /**

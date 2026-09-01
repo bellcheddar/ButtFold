@@ -117,6 +117,9 @@ console.log(`baked final Q ${bakedFinalQ.toFixed(3)}`);
 const began = Date.now();
 await evaluate(`document.querySelector('#engine-mode button[data-source="live"]').click()`);
 
+// Samples taken while the fold was still running, so "the charts moved during the fold" is
+// testable rather than inferred from the finished trajectory.
+const whileFolding = [];
 let live = null;
 for (let i = 0; i < 240; i++) {
   await sleep(1000);
@@ -127,6 +130,12 @@ for (let i = 0; i < 240; i++) {
     return {
       status, done, source: p.source,
       frames: p.frames.length,
+      history: p.history.rg.length,
+      // The cartoon sweeps its cross section from this. A live frame that arrives without
+      // it draws every residue as coil, so the fold was a wriggling string until the last
+      // frame and then snapped into helices and sheets all at once.
+      hasSSConfidence: p.frames.length
+        ? !!p.frames[p.frames.length - 1].ssConfidence : false,
       finalQ: p.frames.length ? p.frames[p.frames.length - 1].q : 0,
       firstRg: p.frames.length ? p.frames[0].rg : 0,
       lastRg: p.frames.length ? p.frames[p.frames.length - 1].rg : 0,
@@ -137,6 +146,7 @@ for (let i = 0; i < 240; i++) {
       ssFinal: p.frames.length ? p.frames[p.frames.length - 1].ss : '',
     };
   })()`);
+  if (!live.done && live.frames > 0) whileFolding.push(live);
   if (live.done) break;
 }
 const wall = (Date.now() - began) / 1000;
@@ -153,7 +163,23 @@ console.log(`badge         "${live.badge}"`);
 console.log(`score         ${live.notes.toLocaleString()} notes`);
 if (logs.length) logs.forEach(l => console.log(`  [page] ${l}`));
 
+const distinctCounts = new Set(whileFolding.map(s => s.frames)).size;
+const desynced = whileFolding.filter(s => s.history !== s.frames);
+console.log(`streamed      ${distinctCounts} distinct frame counts seen while folding`);
+
 const failures = [];
+if (!(distinctCounts >= 3)) {
+  failures.push(`the live fold did not appear to stream: ${distinctCounts} distinct frame `
+                + 'counts seen while it was folding, want at least 3');
+}
+if (desynced.length) {
+  failures.push(`the charts lag the frames: ${desynced.length} samples where the Rg history `
+                + `had ${desynced[0].history} points for ${desynced[0].frames} frames`);
+}
+if (!live.hasSSConfidence) {
+  failures.push('live frames carry no per-residue secondary structure certainty, so the '
+                + 'cartoon draws the whole chain as coil until the fold ends');
+}
 if (!support.ok) failures.push(`the page reports no live support: ${support.missing.join(', ')}`);
 if (foldId !== 'trp_cage') failures.push(`the default fold is ${foldId}, not trp_cage`);
 if (!live.done) failures.push(`the fold did not finish in ${wall.toFixed(0)} s: "${live.status}"`);
