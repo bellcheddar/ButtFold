@@ -105,9 +105,6 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   .controls { gap: 6px 12px; }
   .control { flex: 1 1 100%; }
   .segmented { overflow-x: auto; max-width: 100%; }
-  /* On a phone the page scrolls anyway, so the stage takes a share of the viewport rather
-     than what is left over: half of it, which is what the app gives it. */
-  .stage-wrap { height: clamp(280px, 48vh, 460px); }
 }
 
 /* ---------------------------------------------------------------- title block -------
@@ -196,13 +193,27 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   /* Sized from what is left after everything above and below it, so the transport is on
      screen without scrolling. The subtrahend is measured, not guessed: header 56, title
      block ~86, controls ~44, readouts ~52, transport ~56, plus margins. Measured in a real
-     browser at four common sizes rather than added up on paper: 330 was five pixels short
-     at 1280x800 and 1366x768, which is exactly the kind of arithmetic that is right when
-     written and wrong three commits later. tests/stage_screenshot.mjs now checks the Play
-     bar's bottom edge against the fold at each of them. The floor keeps a very short window
-     usable by letting the page scroll rather than crushing the stage. */
-  height: clamp(260px, calc(100vh - 344px), 560px);
+     browser at four common sizes rather than added up on paper, and it has now been five
+     pixels short TWICE at 1280x800 and 1366x768 - once at 330 and again at 252, arrived at
+     by subtracting the height of the transport and the score line when they left the flow.
+     Exactly the kind of arithmetic that is right when written and wrong three commits later,
+     so tests/stage_screenshot.mjs measures where the readouts actually end rather than where
+     they should. The ceiling rose to 620 because the transport is inside the frame now. The
+     floor keeps a very short window usable by letting the page scroll rather than crushing
+     the stage. */
+  height: clamp(260px, calc(100vh - 260px), 620px);
   touch-action: none;   /* drag orbits the structure; it must not scroll the page */
+}
+/* On a phone the page scrolls anyway, so the stage takes a share of the viewport rather
+   than what is left over: half of it, which is what the app gives it.
+
+   This lived up with the rest of the phone block, three hundred lines ABOVE the rule it was
+   meant to override. Same specificity, so the later one won and the phone had been using
+   the desktop calculation the whole time - which is why a 844 px phone was giving the stage
+   592 px rather than the 405 this asks for. A media query is not more specific than the rule
+   it narrows. */
+@media (max-width: 720px) {
+  .stage-wrap { height: clamp(280px, 48vh, 460px); }
 }
 .stage-wrap canvas { display: block; width: 100%; height: 100%; }
 
@@ -226,11 +237,6 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .stage-badge .status::before { content: " \00B7  "; color: var(--bf-text-2); }
 .stage-badge .status:empty::before { content: none; }
 
-.stage-hint {
-  position: absolute; right: 12px; bottom: 12px;
-  font: 500 11px/1 var(--bf-mono); color: var(--bf-text-2);
-  opacity: 0.7; pointer-events: none;
-}
 
 /* ---------------------------------------------------------------- readouts ------------ */
 
@@ -290,37 +296,60 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .chart .legend .e { color: var(--bf-sheet); }
 .chart .legend .c { color: var(--bf-coil); }
 
-/* ---------------------------------------------------------------- transport ----------- */
+/* ---------------------------------------------------------------- transport -----------
+   Inside the viewer, over the structure. Both of these used to sit in the page's flow
+   under the stage, where they cost the structure a row of height apiece and put controls
+   that only ever act on the viewer outside it. The stage's own pointer handlers are on the
+   canvas, not on this wrapper, so a drag on a slider cannot also orbit the protein. */
 
-.transport {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  margin: 12px 0 6px;
+.stage-transport {
+  position: absolute; z-index: 2; left: 12px; right: 12px; top: 12px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 14px 7px 7px;
+  background: rgba(5, 4, 14, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--bf-radius-pill);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .play {
   appearance: none; border: 0; cursor: pointer;
   background: var(--bf-action); color: #fff;
-  font: 600 15px/1 var(--bf-sans);
-  padding: 12px 26px; border-radius: var(--bf-radius-pill);
-  min-width: 116px;
+  font: 600 14px/1 var(--bf-sans);
+  padding: 10px 20px; border-radius: var(--bf-radius-pill);
+  min-width: 92px; flex: none;
 }
 .play:hover { filter: brightness(1.12); }
 .play:active { filter: brightness(0.94); }
-.seek { flex: 1 1 200px; min-width: 160px; accent-color: var(--bf-action); }
+.seek { flex: 1 1 auto; min-width: 60px; accent-color: var(--bf-action); }
 .frame-count {
-  font-family: var(--bf-mono); font-size: 13px; color: var(--bf-text-2);
-  font-variant-numeric: tabular-nums;
+  font-family: var(--bf-mono); font-size: 12px; color: var(--bf-text-2);
+  font-variant-numeric: tabular-nums; flex: none; white-space: nowrap;
 }
-.volume-label {
-  font-size: 11px; color: var(--bf-text-2); text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.volume { flex: 0 1 110px; accent-color: var(--bf-action); }
 
-/* What the score cost, stated rather than hidden. A trajectory that loses most of its
-   contact events to the per-bar cap should say so instead of just sounding thin. */
-.score-summary {
-  margin: 0; font: 500 12px/1.5 var(--bf-mono); color: var(--bf-text-2);
+/* Vertical, unlabelled, on the inside right.
+   `writing-mode: vertical-lr` with `direction: rtl` is the standard way to turn a range
+   input, and it puts the loud end at the top; `appearance: slider-vertical` is the older
+   WebKit spelling and is kept for a Safari that does not honour the first. Both are
+   declared because either alone leaves the control horizontal in one of the two engines,
+   and a horizontal slider pinned to the right edge of the stage is 20 px wide and unusable
+   rather than obviously broken. tests/stage_screenshot.mjs measures the box. */
+.volume {
+  position: absolute; z-index: 2; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  writing-mode: vertical-lr; direction: rtl;
+  appearance: slider-vertical; -webkit-appearance: slider-vertical;
+  width: 18px; height: clamp(90px, 22vh, 150px);
+  accent-color: var(--bf-action);
+  cursor: pointer;
+  /* `accent-color` paints the filled half and leaves the empty half to the browser, which
+     on a dark stage is a bright white bar. There is no way to reach that track without
+     `appearance: none`, which would take the vertical orientation with it, so the whole
+     control is dimmed to chrome and comes up to full strength under the pointer. Same
+     treatment the old "drag to orbit" hint had. */
+  opacity: 0.6; transition: opacity 0.15s ease;
 }
+.volume:hover, .volume:focus-visible { opacity: 1; }
+
 .audio-note { margin: 4px 0 0; font-size: 13px; color: var(--bf-magenta); }
 .audio-note:empty { display: none; }
 

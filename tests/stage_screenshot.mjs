@@ -215,9 +215,25 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1512, 982], [1366, 768
       .map(el => Math.round(el.getBoundingClientRect().top));
     const readouts = [...document.querySelectorAll('.readout')]
       .map(el => Math.round(el.getBoundingClientRect().top));
+    const volume = document.getElementById('volume').getBoundingClientRect();
     return {
       size: '${width}x${height}',
       playBottom: Math.round(play.bottom),
+      // The transport is inside the viewer now, so "on screen" is no longer arithmetic over
+      // six element heights: it is whether the bar is inside the stage it overlays.
+      playInsideStage: play.top >= stage.top - 1 && play.bottom <= stage.bottom + 1
+                       && play.left >= stage.left - 1,
+      // A range input that did not turn is 18 px wide and full height of nothing: it looks
+      // like a hairline rather than like a broken control, which is why this is measured.
+      volumeIsVertical: volume.height > volume.width * 2,
+      volumeInsideStage: volume.right <= stage.right + 1 && volume.top >= stage.top - 1
+                         && volume.bottom <= stage.bottom + 1,
+      // The readouts are the last thing under the stage, so this is what "the viewer fits"
+      // actually means now that the transport is inside the frame. The stage's height is a
+      // subtraction from the viewport and the subtrahend is measured HERE rather than added
+      // up on paper, which is the only reason it is right.
+      readoutsBottom: Math.round(
+        document.querySelector('.readouts').getBoundingClientRect().bottom),
       viewportHeight: window.innerHeight,
       stageHeight: Math.round(stage.height),
       stageShare: stage.height / window.innerHeight,
@@ -265,7 +281,8 @@ for (const [mode, m] of Object.entries(modes)) {
               + `${(m.nonUniform * 100).toFixed(1)}% non-uniform, signature ${m.signature}`);
 }
 for (const d of desktops) {
-  console.log(`  ${d.size.padEnd(9)} play bar ends at ${d.playBottom}px of `
+  console.log(`  ${d.size.padEnd(9)} volume ${d.volumeIsVertical ? 'vertical' : 'FLAT'}, `
+              + `readouts end at ${d.readoutsBottom}px of `
               + `${d.viewportHeight}px, stage ${d.stageHeight}px `
               + `(${(d.stageShare * 100).toFixed(0)}%), controls ${d.controlRows} row`
               + `${d.controlRows === 1 ? '' : 's'} (${d.controlsWidth}px), `
@@ -312,6 +329,22 @@ for (let i = 0; i < signatures.length; i++) {
 }
 
 for (const d of desktops) {
+  if (!d.playInsideStage) {
+    failures.push(`at ${d.size} the transport is not inside the viewer it controls`);
+  }
+  if (!d.volumeIsVertical) {
+    failures.push(`at ${d.size} the volume slider did not turn vertical: this browser `
+                  + 'honours neither writing-mode nor appearance: slider-vertical on a range '
+                  + 'input, and an 18px-wide horizontal slider is unusable');
+  }
+  if (!d.volumeInsideStage) {
+    failures.push(`at ${d.size} the volume slider is outside the viewer`);
+  }
+  if (d.readoutsBottom > d.viewportHeight) {
+    failures.push(`at ${d.size} the readouts end at ${d.readoutsBottom}px, `
+                  + `${d.readoutsBottom - d.viewportHeight}px below the ${d.viewportHeight}px `
+                  + 'fold: the stage is taking more height than is left over');
+  }
   if (d.playBottom > d.viewportHeight) {
     failures.push(`at ${d.size} the Play bar ends at ${d.playBottom}px, below the `
                   + `${d.viewportHeight}px fold: a visitor has to scroll to press Play`);

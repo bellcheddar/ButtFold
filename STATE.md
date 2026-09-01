@@ -262,6 +262,15 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       whole JS suite passed or failed depending on which node was first on PATH - and the
       only one on this Mac's PATH is CCP4's v16. Scoped to that directory rather than the
       repo root, where it would also reclassify emscripten's generated CommonJS CLI.
+- [x] **The transport is inside the viewer.** Play, the seek bar and the frame count sit as
+      an overlay on the top of the stage, and the volume is a vertical slider on its inside
+      right with no label; "drag to orbit" and the score-summary line are gone, the latter
+      surviving as the transport's own tooltip so PLAN section 5.3 still holds. The stage
+      takes 63 to 69% of the viewport now, up from about 45. Two things found while
+      measuring it: the phone's `.stage-wrap` height had been dead since it was written -
+      same specificity, three hundred lines above the rule it meant to override, so a phone
+      was using the desktop calculation - and the subtrahend in that calculation has now
+      been five pixels short twice, so the gate measures where the readouts actually end.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

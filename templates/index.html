@@ -105,12 +105,25 @@
          status used to sit in a separate paragraph under the transport, which said
          "folding on the server" while the badge two hundred pixels above still said
          "precomputed". One line cannot contradict itself. -->
+    <!-- The transport, inside the frame. It sat under the stage with the volume beside it,
+         which cost the structure a whole row of height and put two controls in the page's
+         flow that only ever act on what is in the viewer. `id="score-summary"` is on the
+         bar rather than on a line of body text: what the score cost is still stated, as
+         this element's title, and PLAN section 5.3 still holds. -->
+    <div class="stage-transport" id="score-summary">
+      <button type="button" class="play" id="play">Play</button>
+      <input type="range" class="seek" id="seek" min="0" max="0" value="0" aria-label="Seek">
+      <span class="frame-count" id="frame-count">&mdash;</span>
+    </div>
+    <!-- Vertical, on the inside right, unlabelled: a speaker is what a vertical slider on
+         a player is, and the word cost a row of its own beside the seek bar. -->
+    <input type="range" class="volume" id="volume" min="0" max="100" value="70"
+           aria-label="Volume" title="Volume">
     <div class="stage-badge">
       <span class="engine" id="badge-engine">G&#333; model &middot; toward a known structure</span>
       <span class="where" id="badge-where">precomputed</span>
       <span class="status" id="live-status"></span>
     </div>
-    <div class="stage-hint">drag to orbit</div>
   </div>
 
   <div class="readouts">
@@ -144,15 +157,6 @@
     </div>
   </div>
 
-  <div class="transport">
-    <button type="button" class="play" id="play">Play</button>
-    <input type="range" class="seek" id="seek" min="0" max="0" value="0" aria-label="Seek">
-    <span class="frame-count" id="frame-count">&mdash;</span>
-    <label class="volume-label" for="volume">Volume</label>
-    <input type="range" class="volume" id="volume" min="0" max="100" value="70"
-           aria-label="Volume">
-  </div>
-  <p class="score-summary" id="score-summary"></p>
   <p class="audio-note" id="audio-note"></p>
 
   <div class="section-head">

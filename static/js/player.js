@@ -183,7 +183,11 @@ class Player {
     // Reported, not hidden: a trajectory that loses most of its events to the per-bar cap
     // should say so rather than just sounding thin. PLAN section 5.3's honesty rule applied
     // to the music.
-    $('score-summary').textContent =
+    // On the transport's own tooltip rather than in a line of body text, on Marc's
+    // instruction, 2026-09-01. PLAN section 5.3's honesty rule is about the figure being
+    // stated rather than hidden, and it still is: a trajectory that loses most of its
+    // contact events to the per-bar cap says so, one hover from the Play button.
+    $('score-summary').title =
       `${notes.toLocaleString()} notes over ${seconds.toFixed(0)} s`
       + (dropped ? `, ${dropped.toLocaleString()} contacts past the per-bar cap` : '');
   }

@@ -114,7 +114,8 @@ const before = await evaluate(`(() => {
     notes: p.scored.moments.reduce((s, m) => s + m.notes.length, 0),
     durationSeconds: p.audio.durationSeconds,
     timeline: p.audio.timeline.length,
-    summary: document.getElementById('score-summary').textContent,
+    // The figure moved from a line of body text to the transport's tooltip.
+    summary: document.getElementById('score-summary').title,
     available: p.audio.available,
   };
 })()`);
