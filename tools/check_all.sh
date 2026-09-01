@@ -30,7 +30,7 @@ run "python tests"      "$PY" -m pytest tests/ -q
 if [[ -x "$NODE" ]]; then
   run "javascript tests"  "$NODE" --test tests/module_parity.test.mjs \
       tests/geometry_parity.test.mjs tests/sonifier_parity.test.mjs \
-      tests/live_parity.test.mjs
+      tests/live_parity.test.mjs tests/stage_camera.test.mjs
 else
   printf '\n=== javascript tests ===\n  SKIPPED: no node at %s (set BUTTFOLD_NODE)\n' "$NODE"
   failed=1
@@ -43,6 +43,10 @@ if curl -sf -o /dev/null "${BUTTFOLD_URL:-http://127.0.0.1:8007/}healthz" 2>/dev
   run "stage renders"   "$NODE" tests/stage_screenshot.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
   # The parity test proves the score is right and says nothing about whether it reaches an
   # AudioContext. A sonifier wired to nothing produces silence and passes every unit test.
+  # The camera's model is unit-tested; this is the wiring, which is the half that was
+  # broken and which no unit test could have caught.
+  run "drag, zoom and reframe reach the camera" \
+      "$NODE" tests/stage_drag.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
   run "sound reaches the audio device" \
       "$NODE" tests/audio_smoke.mjs "${BUTTFOLD_URL:-http://127.0.0.1:8007/}"
   run "a browser folds trp-cage live" \

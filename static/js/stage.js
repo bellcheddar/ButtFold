@@ -18,6 +18,8 @@
  * 0.122), measured from a render rather than converted from a guess.
  */
 
+import { StageCamera } from './StageCamera.js';
+
 const STAGE_CLEAR = 0x0d0d26;
 
 // Ribbon colouring, the thing a viewer actually sees. PLAN section 6.1.
@@ -59,13 +61,14 @@ export class Stage {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(STAGE_CLEAR);
 
-    this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 20000);
-    // Distance is computed from the viewport in _fitCamera, not fixed: the artefact
-    // quantises every trajectory into the same +/-1000 box, so one distance frames every
-    // fold, but the RIGHT distance depends on the stage's aspect. A camera tuned on a wide
-    // desktop stage crops the structure on a tall phone one, and vice versa.
+    this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 40000);
+    // **The camera is fixed on +Z and the SUBJECT rotates**, which is how PhoneFold's stage
+    // works and is the whole reason a vertical drag no longer dies. See StageCamera.js.
+    // The distance still comes from the viewport in _fitCamera, because the artefact
+    // quantises every trajectory into the same +/-1000 box but the RIGHT distance depends
+    // on the stage's aspect: one tuned on a wide desktop stage crops a tall phone one.
     this.halfExtent = 1000;      // the artefact's quantisedRange
-    this.orbitRadius = 3200;     // replaced by _fitCamera on the first resize
+    this.control = new StageCamera(3200);   // distance replaced by _fitCamera on first resize
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -84,7 +87,6 @@ export class Stage {
     this.group = new THREE.Group();
     this.scene.add(this.group);
 
-    this.orbit = { theta: 0, phi: 0, autoSpin: true };
     this._installDrag();
     this._installResize();
     this.resize();
@@ -195,7 +197,7 @@ export class Stage {
   /* One frame of the idle spin, called by the player's loop even when paused, so the
    * structure is always presented rather than sitting still like a screenshot. */
   spin(deltaSeconds) {
-    if (this.orbit.autoSpin) this.orbit.theta += deltaSeconds * 0.22;
+    this.control.advance(deltaSeconds);
     this._applyOrbit();
   }
 
@@ -214,44 +216,93 @@ export class Stage {
     const vertical = (this.halfExtent * margin) / Math.tan(vFov / 2);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
     const horizontal = (this.halfExtent * margin) / Math.tan(hFov / 2);
-    this.orbitRadius = Math.max(vertical, horizontal);
+    this.control.setDefaultDistance(Math.max(vertical, horizontal));
   }
 
+  /* The camera sits on +Z at the chosen distance and never moves off it; the group carries
+   * the attitude. No lookAt target to orbit, no up vector to protect, and therefore no pole
+   * to clamp against - which is exactly what the old yaw/pitch orbit had, and what killed a
+   * vertical drag once it reached the clamp. */
   _applyOrbit() {
-    const radius = this.orbitRadius;
-    const phi = Math.max(-1.35, Math.min(1.35, this.orbit.phi));
-    this.camera.position.set(
-      radius * Math.cos(phi) * Math.sin(this.orbit.theta),
-      radius * Math.sin(phi),
-      radius * Math.cos(phi) * Math.cos(this.orbit.theta));
+    const q = this.control.attitude;
+    this.group.quaternion.set(q[0], q[1], q[2], q[3]);
+    this.camera.position.set(0, 0, this.control.distance);
     this.camera.lookAt(0, 0, 0);
   }
 
+  /* Pointer, wheel and touch, translated into StageCamera calls and nothing more.
+   *
+   * `setPointerCapture` rather than window-level listeners: a fast drag that leaves the
+   * canvas keeps delivering events to the element that captured it, and the browser sends
+   * `pointercancel` if the gesture is taken away - which is the end event the old code had
+   * no way to hear. StageCamera's two-second input timeout stays as a backstop anyway,
+   * because PhoneFold learned that an end event you rely on is one that will not arrive.
+   */
   _installDrag() {
     const element = this.renderer.domElement;
-    let dragging = false, lastX = 0, lastY = 0;
-    const down = (e) => {
-      dragging = true;
-      this.orbit.autoSpin = false;
-      const p = e.touches ? e.touches[0] : e;
-      lastX = p.clientX; lastY = p.clientY;
+    element.style.touchAction = 'none';
+    const pointers = new Map();
+    let lastX = 0, lastY = 0, pinchStart = 0;
+
+    const positions = () => [...pointers.values()];
+    const spread = () => {
+      const [a, b] = positions();
+      return Math.hypot(a.x - b.x, a.y - b.y);
     };
-    const move = (e) => {
-      if (!dragging) return;
-      const p = e.touches ? e.touches[0] : e;
-      this.orbit.theta -= (p.clientX - lastX) * 0.008;
-      this.orbit.phi += (p.clientY - lastY) * 0.008;
-      lastX = p.clientX; lastY = p.clientY;
-      this._applyOrbit();
+
+    element.addEventListener('pointerdown', (e) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      element.setPointerCapture?.(e.pointerId);
+      if (pointers.size === 1) { lastX = e.clientX; lastY = e.clientY; }
+      if (pointers.size === 2) { pinchStart = spread(); this.control.pinchAnchor = null; }
       e.preventDefault();
+    });
+
+    element.addEventListener('pointermove', (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size >= 2) {
+        // Two fingers: pinch to zoom, and no rotation, so the two do not fight.
+        if (pinchStart > 0) this.control.magnify(spread() / pinchStart);
+      } else {
+        this.control.drag(e.clientX - lastX, e.clientY - lastY);
+        lastX = e.clientX;
+        lastY = e.clientY;
+      }
+      this._applyOrbit();
+      this.renderer.render(this.scene, this.camera);
+      e.preventDefault();
+    });
+
+    const release = (e) => {
+      pointers.delete(e.pointerId);
+      if (element.hasPointerCapture?.(e.pointerId)) element.releasePointerCapture(e.pointerId);
+      if (pointers.size === 0) {
+        this.control.endInteraction();
+      } else if (pointers.size === 1) {
+        const [only] = positions();
+        lastX = only.x; lastY = only.y;   // carry on dragging with the finger left behind
+        pinchStart = 0;
+      }
     };
-    const up = () => { dragging = false; };
-    element.addEventListener('pointerdown', down);
-    window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', up);
-    element.addEventListener('touchstart', down, { passive: true });
-    window.addEventListener('touchmove', move, { passive: false });
-    window.addEventListener('touchend', up);
+    element.addEventListener('pointerup', release);
+    element.addEventListener('pointercancel', release);
+    element.addEventListener('lostpointercapture', release);
+
+    // Scroll-wheel zoom: PLAN's "Mac adds scroll-wheel zoom". Scaled to taste and passed
+    // straight through; the camera makes it exponential and clamps it.
+    element.addEventListener('wheel', (e) => {
+      this.control.zoom(-e.deltaY * 0.0015);
+      this._applyOrbit();
+      this.renderer.render(this.scene, this.camera);
+      e.preventDefault();
+    }, { passive: false });
+
+    element.addEventListener('dblclick', () => {
+      this.control.reframe();
+      this._applyOrbit();
+      this.renderer.render(this.scene, this.camera);
+    });
   }
 
   _installResize() {

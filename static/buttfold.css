@@ -157,6 +157,32 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .segmented button[aria-pressed="true"] { background: var(--bf-action); color: #fff; }
 .segmented button[disabled] { opacity: 0.4; cursor: not-allowed; }
 
+/* ---------------------------------------------------------------- the viewer ----------
+   The structure and its two time series, side by side. The charts used to sit below the
+   readouts, where they added about 130 px and pushed the transport off a short screen; the
+   stage is the subject, so it keeps roughly 60% of the width and the charts take the rest
+   and stack. Below 900 px the two columns become one, because a 40% column of a phone is
+   not a chart, it is a smear. */
+
+.viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 60fr) minmax(0, 40fr);
+  gap: 14px;
+  /* Stretch, not start: the LEFT column decides the row height - it is the stage, whose
+     height is computed from the viewport - and the charts fill whatever that turns out to
+     be. With `align-items: start` the two columns sized themselves independently and the
+     charts came out 25 px taller than the stage at 1366x768, which put the transport back
+     below the fold. */
+  align-items: stretch;
+}
+.viewer-main { min-width: 0; }
+.viewer-side { display: flex; flex-direction: column; min-height: 0; }
+
+@media (max-width: 900px) {
+  .viewer { grid-template-columns: 1fr; }
+  .viewer-side { height: auto; }
+}
+
 /* ---------------------------------------------------------------- the stage ---------- */
 
 .stage-wrap {
@@ -204,6 +230,13 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
   background: rgba(255, 255, 255, 0.04); border-radius: 0 0 var(--bf-radius) var(--bf-radius);
   overflow: hidden;
 }
+/* One row beside the stage, always. Two rows cost 57 px and put the transport back below
+   the fold, so the labels are short enough to fit six columns in a 60% one: the units are
+   in the label and the values speak for themselves. */
+@media (min-width: 901px) {
+  .readouts { grid-template-columns: repeat(6, 1fr); }
+  .readout .k { font-size: 9.5px; letter-spacing: 0.06em; white-space: nowrap; }
+}
 .readout { background: var(--bf-ground); padding: 7px 12px; }
 .readout .k {
   display: block; color: var(--bf-text-2); font-size: 10px;
@@ -219,17 +252,29 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 
 /* ---------------------------------------------------------------- charts -------------- */
 
-.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0 14px; }
+/* Stacked, one above the other, filling the column beside the stage. */
+.charts {
+  display: grid; grid-template-rows: 1fr 1fr; gap: 12px; margin: 0;
+  flex: 1 1 auto; min-height: 0;
+}
+@media (max-width: 900px) {
+  .charts { grid-template-rows: none; grid-template-columns: 1fr 1fr; margin: 14px 0 0; }
+}
 @media (max-width: 620px) { .charts { grid-template-columns: 1fr; } }
 .chart {
   background: var(--bf-ground-raised); border-radius: var(--bf-radius);
-  padding: 10px 12px 6px; border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 10px 12px 8px; border: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
 }
 .chart h3 {
   margin: 0 0 6px; font: 500 11px/1 var(--bf-sans); color: var(--bf-text-2);
   text-transform: uppercase; letter-spacing: 0.09em;
 }
-.chart canvas { display: block; width: 100%; height: 72px; }
+/* `flex: 1 1 0` with `min-height: 0`, NOT `1 1 auto` with a minimum. A canvas's intrinsic
+   size comes from its width and height attributes, which `prepare()` in player.js sets from
+   the element's own measured size - so an auto basis feeds the canvas's height back into
+   itself and the chart column grows a little every layout. */
+.chart canvas { display: block; width: 100%; flex: 1 1 0; min-height: 0; }
 .chart .legend { font: 500 10px/1.4 var(--bf-mono); color: var(--bf-text-2); }
 .chart .legend .h { color: var(--bf-helix); }
 .chart .legend .e { color: var(--bf-sheet); }
