@@ -341,6 +341,13 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       up. Both fixed. `outputLatency` may be a detector - a fresh unresumed context reads 0
       and a working one read 0.0158 - but the dead one was gone before it could be measured,
       so that is a guess and is not built on.
+- [x] **Two panels under the gallery**, one shape twice: a line you cannot miss, and the
+      detail behind a Read more. The disclosure is tightened and collapses on Marc's
+      instruction, 2026-09-02, and the honesty rule moved rather than went: "No protein folds
+      this way" is in the always-visible summary and only the elaboration folds away. The
+      test used to enforce that by banning `<details>` from the block outright; it now
+      asserts the split, which is what the rule was always about. The second panel says how
+      the music is made, feature by feature, from the sonifier's own mapping table.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [x] **Genie 2 gallery entries**, three of them: an all-alpha 64-mer, a mixed alpha/beta
       72-mer and an 80-residue helical bundle, each a backbone that has never existed. Baked

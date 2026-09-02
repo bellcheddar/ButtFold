@@ -148,7 +148,9 @@ def test_the_badge_never_says_the_prediction_happened_on_this_server():
 
 
 def test_the_disclosure_paragraph_covers_the_prediction():
-    from tests.test_honesty import DISCLOSURE_PARAGRAPH
+    # In the detail rather than the summary: the summary carries the one claim a reader must
+    # not miss, and which engine predicted what is elaboration on it.
+    from tests.test_honesty import DISCLOSURE_DETAIL as DISCLOSURE_PARAGRAPH
     assert "ESMFold" in DISCLOSURE_PARAGRAPH, (
         "the page offers an engine that folds toward a prediction and the disclosure "
         "paragraph does not mention it")

@@ -219,24 +219,66 @@
     {% endfor %}
   </div>
 
-  <!-- ButtFold's own disclosure paragraph, body text and not behind a link, because a web
-       page reaches people with no context. PLAN section 7. Wording pending Marc's approval
-       in BLOCKERS.md; the Phase 5 gate greps the served page for it. -->
-  <div class="honesty">
-    <p><span class="joke">Yes, it is a butt-dial joke. That is the only time it will be
-    mentioned.</span> ButtFold shows a simple physics model relaxing a chain into a structure
-    it already knows, and what a generative network's inventions look and sound like. It is
-    not a prediction of an unknown structure, it is not a physical folding pathway, and no
-    protein folds this way. The ESMFold engine adds a second claim on top of that one and
-    they are separate: ESMFold, running at Meta rather than here, predicts where a real
-    UniProt protein ends up, and the G&#333; model then animates a chain collapsing toward
-    that prediction. The prediction can be wrong, which is why every protein offered has an
-    experimental structure in the PDB to check it against. The 150 poses in each trajectory
-    are 50,000 integration steps
-    apart, far enough that an atom can move further than the protein is wide between two of
-    them; what you see in between is drawn to join them up, not computed, so the motion is
-    smooth where the model is not. The music is a faithful map of the simulation's events,
-    and nothing more.</p>
+  <!-- Two panels, same shape: a line you cannot miss, and the detail behind a Read more.
+       PLAN section 7 says the disclosure is body text and not a "learn more", and it still
+       is in the part that matters - "no protein folds this way" is in the summary, always
+       visible, never behind a click. What collapses is the elaboration. tests/test_honesty
+       enforces exactly that split rather than the old blanket ban on a disclosure element,
+       because the rule was always about what a reader cannot miss. -->
+  <div class="panels">
+    <details class="panel panel-honesty" id="honesty">
+      <summary>
+        <p><span class="joke">Yes, it is a butt-dial joke. It will not come up again.</span>
+        <strong>No protein folds this way.</strong> ButtFold animates a simple physics model
+        relaxing a chain toward a structure it already knows.</p>
+        <span class="more"><span class="more-open">What it is, and is not</span><span
+          class="more-shut">Close</span></span>
+      </summary>
+      <div class="rest">
+        <p>That is not a prediction of an unknown structure and it is not a folding pathway.
+        The ESMFold engine adds a second claim, and the two are separate: ESMFold predicts
+        where a real UniProt protein ends up &mdash; at Meta, not on this server &mdash; and
+        the G&#333; model then animates a chain collapsing toward that prediction. A
+        prediction can be wrong, so every protein offered has an experimental structure in
+        the PDB to check it against. Genie 2 makes no claim at all: those backbones have
+        never existed.</p>
+        <p>The 150 poses in a trajectory are 50,000 integration steps apart, far enough that
+        an atom can move further than the protein is wide between two of them. What you see
+        in between is drawn to join them up, not computed, so the motion is smooth where the
+        model is not. The music is a faithful map of the simulation's events, and nothing
+        more.</p>
+      </div>
+    </details>
+
+    <details class="panel panel-music">
+      <summary>
+        <p><strong>Every note is an event in the fold.</strong> Nothing is composed and
+        nothing is random: the same protein in the same style gives the same piece, every
+        time.</p>
+        <span class="more"><span class="more-open">How the music is made</span><span
+          class="more-shut">Close</span></span>
+      </summary>
+      <div class="rest">
+        <p>Two residues touching for the first time is a note. How far apart they are in the
+        chain sets its register, so a local contact sounds high and a long-range one low; a
+        long-range contact between two greasy residues &mdash; the core coming together
+        &mdash; goes to the bass.</p>
+        <dl class="mapping">
+          <dt>Helix</dt><dd>a sustained pad in stacked fourths</dd>
+          <dt>Sheet</dt><dd>a staccato interlocking figure</dd>
+          <dt>Coil</dt><dd>arpeggios between the chord tones</dd>
+          <dt>How folded one residue is</dt><dd>that note&#8217;s velocity</dd>
+          <dt>How folded the chain is</dt><dd>the low-pass, the detune and the reverb</dd>
+          <dt>Radius of gyration</dt><dd>tempo and register</dd>
+          <dt>Converging</dt><dd>a cadence, resolving to the tonic</dd>
+        </dl>
+        <p>So a protein that never quite resolves stays a detuned wash for the whole piece,
+        and one that snaps shut accelerates into a cadence. Each note is placed in space
+        where its own residue is, which is worth headphones. A bar holds sixteen contacts at
+        most; when more form than that the surplus is counted and reported under the
+        transport rather than quietly dropped.</p>
+      </div>
+    </details>
   </div>
 
 </main>

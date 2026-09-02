@@ -36,20 +36,29 @@ DISCLOSURE_GO = "Simulated on device toward a known structure — not a predicti
 DISCLOSURE_GENERATIVE = "Genie 2 invents a backbone from noise. Not a named protein"
 DISCLOSURE_MORPH = "A smooth interpolation into the known structure. Not physics"
 
+# The whole disclosure, summary and detail together. `visible_text` reads the served DOM,
+# and a collapsed <details> is still in the DOM, so this is every word the page carries.
 DISCLOSURE_PARAGRAPH = (
-    "ButtFold shows a simple physics model relaxing a chain into a structure it already "
-    "knows, and what a generative network's inventions look and sound like. It is not a "
-    "prediction of an unknown structure, it is not a physical folding pathway, and no "
-    "protein folds this way. The ESMFold engine adds a second claim on top of that one and "
-    "they are separate: ESMFold, running at Meta rather than here, predicts where a real "
-    "UniProt protein ends up, and the G\u014d model then animates a chain collapsing toward "
-    "that prediction. The prediction can be wrong, which is why every protein offered has "
-    "an experimental structure in the PDB to check it against. The 150 poses in each "
-    "trajectory are 50,000 integration steps "
-    "apart, far enough that an atom can move further than the protein is wide between two "
-    "of them; what you see in between is drawn to join them up, not computed, so the "
-    "motion is smooth where the model is not. The music is a faithful map of the "
-    "simulation's events, and nothing more."
+    "Yes, it is a butt-dial joke. It will not come up again. No protein folds this way. "
+    "ButtFold animates a simple physics model relaxing a chain toward a structure it "
+    "already knows."
+)
+
+# The part that must never be behind a click. See the test below for why this is now a
+# split rather than a ban on disclosure elements.
+DISCLOSURE_SUMMARY = "No protein folds this way."
+
+DISCLOSURE_DETAIL = (
+    "That is not a prediction of an unknown structure and it is not a folding pathway. The "
+    "ESMFold engine adds a second claim, and the two are separate: ESMFold predicts where a "
+    "real UniProt protein ends up \u2014 at Meta, not on this server \u2014 and the G\u014d "
+    "model then animates a chain collapsing toward that prediction. A prediction can be "
+    "wrong, so every protein offered has an experimental structure in the PDB to check it "
+    "against. Genie 2 makes no claim at all: those backbones have never existed. The 150 "
+    "poses in a trajectory are 50,000 integration steps apart, far enough that an atom can "
+    "move further than the protein is wide between two of them. What you see in between is "
+    "drawn to join them up, not computed, so the motion is smooth where the model is not. "
+    "The music is a faithful map of the simulation's events, and nothing more."
 )
 
 
@@ -62,7 +71,8 @@ def test_the_interpolation_is_disclosed_rather_than_left_implied():
     rather than computed. PLAN section 7's rule is that the page says what it is doing where
     it is doing it, so the claim is pinned here the way the rest of them are.
     """
-    assert "drawn to join them up, not computed" in DISCLOSURE_PARAGRAPH
+    assert "drawn to join them up, not computed" in DISCLOSURE_DETAIL, (
+        "the interpolation is no longer disclosed anywhere in the panel")
 
 
 def visible_text(html: str) -> str:
@@ -134,13 +144,54 @@ def test_the_disclosure_paragraph_is_in_the_served_page(client):
     assert DISCLOSURE_PARAGRAPH in text, "the served paragraph is not the approved wording"
 
 
-def test_the_disclosure_paragraph_is_body_text_and_not_behind_a_link(client):
-    """A web page reaches people with no context, so this must not be a "learn more"."""
+def test_the_claim_that_matters_is_not_behind_a_click(client):
+    """A web page reaches people with no context, so this must not be a "learn more".
+
+    The rule used to be enforced by banning `<details>` from the block outright. On Marc's
+    instruction, 2026-09-02, the elaboration now collapses behind a Read more - so the rule
+    is enforced where it actually lives instead: the load-bearing sentence has to be in the
+    SUMMARY, which is on screen whether or not anything is opened. What may be folded away
+    is the detail behind that sentence, never the sentence.
+
+    Still no link: a claim inside an anchor is a claim on another page.
+    """
     html = client.get("/").get_data(as_text=True)
-    block = html[html.index('class="honesty"'):]
-    block = block[:block.index("</div>")]
-    assert "<a " not in block, "the disclosure paragraph is inside a link"
-    assert "<details" not in block and "hidden" not in block
+    block = html[html.index('class="panel panel-honesty"'):]
+    # Bounded, or "no link in the block" reads the whole rest of the document and trips over
+    # the footer's byline. A window that overshoots reads whatever follows.
+    block = block[:block.index("</details>")]
+    summary = block[block.index("<summary"):block.index("</summary>")]
+
+    assert DISCLOSURE_SUMMARY in visible_text(summary), (
+        f"{DISCLOSURE_SUMMARY!r} is not in the always-visible summary, so a reader who "
+        "never opens the panel is not told the one thing they most need to know")
+    assert "<a " not in block, "the disclosure is inside a link"
+    assert "<details" not in summary, "the summary itself must not collapse"
+
+
+def test_the_detail_is_present_even_though_it_is_collapsed(client):
+    """Collapsed is not absent. A `<details>` keeps its content in the DOM, so the full
+    disclosure is still served, still searchable, and still there for a reader who opens
+    it - which is the difference between folding text away and cutting it."""
+    text = visible_text(client.get("/").get_data(as_text=True))
+    assert DISCLOSURE_DETAIL in text, "the served detail is not the approved wording"
+
+
+def test_the_music_panel_explains_where_the_notes_come_from(client):
+    """The second panel makes a claim of its own and it has to be true: the music is
+    derived from the trajectory, so the page says which feature becomes which sound."""
+    html = client.get("/").get_data(as_text=True)
+    block = html[html.index('class="panel panel-music"'):]
+    block = block[:block.index("</details>")]
+    text = visible_text(block)
+    assert "Every note is an event in the fold" in text
+    # The determinism claim is testable and tested elsewhere; it must be stated here.
+    assert "same protein in the same style gives the same piece" in text
+    for feature in ["Helix", "Sheet", "Coil", "Radius of gyration"]:
+        assert feature in text, f"the mapping does not mention {feature}"
+    assert "sixteen contacts at most" in text, (
+        "the per-bar cap is the one place the music discards something, and it is stated "
+        "under the transport already; the explanation must not leave it out")
 
 
 def test_the_engine_badge_element_is_present_and_says_where(client):

@@ -160,10 +160,21 @@ UNIPROT_COUNT=$(curl -sf -m 15 "$BASE/api/uniprot" \
   || check "the UniProt catalogue is served (got ${UNIPROT_COUNT:-0} entries)" ""
 
 page=$(curl -sf -m 20 "$BASE/")
-# The disclosure paragraph, on the live page, whitespace-normalised the way a reader sees
-# it. PLAN section 11's Phase 5 gate, run against the deployed site rather than a template.
-echo "$page" | tr -s ' \n\t' ' ' | grep -q "It is not a prediction of an unknown structure, it is not a physical folding pathway, and no protein folds this way." \
-  && check "the disclosure paragraph is live" yes || check "the disclosure paragraph is live" ""
+# The disclosure, on the live page, whitespace-normalised the way a reader sees it. PLAN
+# section 11's Phase 5 gate, run against the deployed site rather than a template.
+#
+# The detail collapses behind a Read more now, so the two halves are checked separately and
+# for different reasons: the SUMMARY must be there because it is what a reader cannot miss,
+# and the DETAIL must be there because collapsed is not the same as cut.
+flat=$(echo "$page" | tr -s ' \n\t' ' ')
+echo "$flat" | grep -q "No protein folds this way." \
+  && check "the claim that cannot be missed is live" yes \
+  || check "the claim that cannot be missed is live" ""
+echo "$flat" | grep -q "drawn to join them up, not computed" \
+  && check "the collapsed detail is served, not cut" yes \
+  || check "the collapsed detail is served, not cut" ""
+echo "$flat" | grep -q "Every note is an event in the fold." \
+  && check "the music panel is live" yes || check "the music panel is live" ""
 # The amber disclosure line was removed on Marc's instruction, 2026-09-01. The claim it
 # carried is still on the page in two places: the stage badge, which names the engine and
 # where it ran and never scrolls away, and the disclosure paragraph checked above. Asserted

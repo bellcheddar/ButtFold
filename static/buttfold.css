@@ -479,13 +479,84 @@ body.picking-uniprot { --bf-page-chrome: 302px; }
 
 /* ---------------------------------------------------------------- honesty ------------- */
 
-.honesty {
-  margin: 30px 0; padding: 18px 20px;
+/* ---------------------------------------------------------------- the two panels ------
+   One shape, two subjects: a line that cannot be missed, and the detail behind it. The
+   amber rail is the app's disclosure colour and the cyan one the music's, which is the only
+   thing that distinguishes them - they are the same object twice, not two designs. */
+.panels { display: flex; flex-direction: column; gap: 10px; margin: 30px 0; }
+
+.panel {
   background: var(--bf-ground-raised); border-radius: var(--bf-radius);
   border-left: 3px solid var(--bf-amber);
   color: var(--bf-text-3); font-size: 15px;
 }
-.honesty p { margin: 0; }
+.panel-music { border-left-color: var(--bf-cyan); }
+
+.panel > summary {
+  padding: 16px 20px; cursor: pointer;
+  display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  /* Both spellings: the marker is a pseudo-element in WebKit and a list marker everywhere
+     else, and the default triangle would sit in front of a paragraph rather than beside the
+     control that actually says what opens. */
+  list-style: none;
+}
+.panel > summary::-webkit-details-marker { display: none; }
+.panel > summary::marker { content: ''; }
+.panel > summary p { margin: 0; flex: 1 1 22em; min-width: 0; }
+.panel > summary p strong { color: var(--bf-text-1); font-weight: 600; }
+.panel:focus-within > summary { outline: none; }
+.panel > summary:focus-visible {
+  outline: 2px solid var(--bf-action); outline-offset: -2px; border-radius: var(--bf-radius);
+}
+
+/* The control. A chevron that turns, rather than a word that changes into another word in
+   the same place, so the state is legible before you read anything. */
+.panel .more {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  font: 500 11px/1 var(--bf-mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--bf-amber); white-space: nowrap;
+  padding: 7px 12px 7px 13px; border-radius: var(--bf-radius-pill);
+  border: 1px solid rgba(252, 185, 0, 0.28);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.panel-music .more { color: var(--bf-cyan); border-color: rgba(34, 229, 255, 0.28); }
+.panel > summary:hover .more { background: rgba(252, 185, 0, 0.10); border-color: rgba(252, 185, 0, 0.5); }
+.panel-music > summary:hover .more { background: rgba(34, 229, 255, 0.10); border-color: rgba(34, 229, 255, 0.5); }
+.panel .more::after {
+  content: ''; width: 6px; height: 6px; margin-top: -3px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg); transition: transform 180ms ease;
+}
+.panel[open] .more::after { transform: rotate(-135deg); margin-top: 2px; }
+.panel .more-shut, .panel[open] .more-open { display: none; }
+.panel[open] .more-shut { display: inline; }
+
+.panel .rest { padding: 0 20px 18px; }
+.panel .rest p { margin: 0 0 12px; }
+.panel .rest p:last-child { margin-bottom: 0; }
+
+/* What each feature of the fold turns into. A two-column list rather than a table: it is
+   pairs, not rows of independent values, and it collapses to one column on a phone without
+   a horizontal scroll. */
+.mapping {
+  display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr);
+  gap: 1px 0; margin: 0 0 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.mapping dt, .mapping dd {
+  margin: 0; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.mapping dt { color: var(--bf-text-2); font-size: 13.5px; padding-right: 18px; }
+.mapping dd { color: var(--bf-text-1); font-size: 13.5px; }
+@media (max-width: 620px) {
+  .mapping { grid-template-columns: 1fr; }
+  .mapping dt { padding-bottom: 0; border-bottom: 0; font-size: 11px;
+                text-transform: uppercase; letter-spacing: 0.07em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel .more::after, .panel .more { transition: none; }
+}
 
 /* ---------------------------------------------------------------- shop window --------- */
 
