@@ -168,6 +168,30 @@ const afterStyle = await evaluate(`(() => {
  * that as "the audio clock advanced only 0.01 s in 2.5 s", which reads as ButtFold's fault
  * and is not. The clock assertions are skipped when this says so; everything else still
  * runs, so a real regression in the scoring is still caught. */
+/* The control that turns both drawings off. Exercised mid-playback, because "off" has to
+ * mean the chords stop being struck and the strip stops being drawn, not that they are
+ * hidden with the work still going on behind them. */
+const toggled = await evaluate(`(() => {
+  const p = window.buttfoldPlayer;
+  const box = document.getElementById('music-toggle');
+  const stage = document.getElementById('stage');
+  const before = { checked: box.checked, hasClass: stage.classList.contains('no-music') };
+  box.checked = false;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+  const s = stage.getBoundingClientRect();
+  const t = document.querySelector('.music-toggle').getBoundingClientRect();
+  const off = {
+    showMusic: p.showMusic,
+    ribbonDisplay: getComputedStyle(document.getElementById('residue-ribbon')).display,
+    chords: p.stage.chordsDrawn,
+    lit: p.stage.glow ? [...p.stage.glow].filter(v => v > 0.02).length : -1,
+    insideStage: t.right <= s.right + 1 && t.bottom <= s.bottom + 1 && t.left >= s.left - 1,
+  };
+  box.checked = true;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+  return { before, off, backOn: p.showMusic };
+})()`);
+
 const clockProbe = await evaluate(`(async () => {
   const ctx = new AudioContext();
   await ctx.resume();
@@ -179,6 +203,9 @@ const clockProbe = await evaluate(`(async () => {
   return { state, advanced, sampleRate: ctx.sampleRate };
 })()`);
 const clockWorks = clockProbe.advanced > 0.5;
+console.log(`music toggle  on by default ${toggled.before.checked}; off -> `
+            + `${toggled.off.chords} chords, ${toggled.off.lit} lit, `
+            + `strip ${toggled.off.ribbonDisplay}`);
 console.log(`clock probe   a bare AudioContext advanced `
             + `${clockProbe.advanced.toFixed(3)} s in 1.5 s`
             + (clockWorks ? '' : '  <- this browser has no audio clock'));
@@ -221,6 +248,20 @@ if (clockWorks) {
     failures.push('the animation never advanced, so it is not following the audio clock');
   }
 }
+if (!toggled.before.checked) failures.push('the music toggle is not on by default');
+if (toggled.before.hasClass) failures.push('the stage starts with the music suppressed');
+if (!toggled.off.insideStage) failures.push('the toggle is not inside the viewer it controls');
+if (toggled.off.showMusic) failures.push('unchecking the box did not turn the music off');
+if (toggled.off.ribbonDisplay !== 'none') {
+  failures.push(`the residue strip is still "${toggled.off.ribbonDisplay}" with music off`);
+}
+if (toggled.off.chords !== 0) {
+  failures.push(`${toggled.off.chords} chords survived turning the music off`);
+}
+if (toggled.off.lit !== 0) {
+  failures.push(`${toggled.off.lit} residues were still lit with the music off`);
+}
+if (!toggled.backOn) failures.push('the music could not be turned back on');
 if (during.playLabel !== 'Pause') failures.push(`the button says "${during.playLabel}"`);
 // The score drawn, not just heard. These only mean anything while the clock is moving, so
 // they sit behind the same probe as the other timing assertions.

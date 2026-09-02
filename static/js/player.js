@@ -106,6 +106,9 @@ class Player {
     this.styles = {};
     this.scored = null;
     this.worker = null;
+    // Both drawings of the score, together, behind one control. On by default: they are
+    // the point of the app, and a visitor who does not want them can say so.
+    this.showMusic = true;
     this.streamedFrames = [];
     this.liveSupported = detectLiveSupport();
     // A different seed each time the server is asked, so "fold it again" is a genuinely
@@ -158,6 +161,23 @@ class Player {
       const button = document.querySelector('#engine-mode button[data-source="queued"]');
       if (button) { button.disabled = true; button.title = 'The UniProt catalogue is unavailable'; }
     }
+  }
+
+  /** Turn the music's drawings on and off together.
+   *
+   * Off, the stage is the plain cartoon fold: no chords, no lit residues, no strip. The
+   * clearing happens here rather than being left to the render loop, because a paused page
+   * never reaches the loop's playing branch - a stage turned off mid-pause would otherwise
+   * keep the last chord struck on it until something else moved.
+   */
+  setShowMusic(on) {
+    this.showMusic = !!on;
+    $('stage').classList.toggle('no-music', !this.showMusic);
+    if (!this.showMusic) {
+      this.stage.clearSounding();
+      this.ribbon?.setSounding([]);
+    }
+    if (this.frames.length) this._showAt(this.rendered ?? this.index);
   }
 
   /* The row is above the stage, so showing it takes height from the stage rather than from
@@ -726,7 +746,7 @@ class Player {
     // The strip is a sequence view of the structure as well as a note display, so it
     // follows the frame whether or not anything is playing: at rest it re-forms as the fold
     // does, which is why it is drawn on a paused page rather than being blank until Play.
-    if (this.ribbon) {
+    if (this.ribbon && this.showMusic) {
       this.ribbon.setStructure(frame.ss);
       this.ribbon.draw();
     }
@@ -864,10 +884,12 @@ class Player {
         $('audio-note').textContent = trouble ?? '';
       }
 
-      const heard = this.audio.notesSounding(this.audio.positionSeconds,
-                                             SOUNDING_TAIL_SECONDS);
-      this.stage.setSounding(heard);
-      this.ribbon?.setSounding(heard);
+      if (this.showMusic) {
+        const heard = this.audio.notesSounding(this.audio.positionSeconds,
+                                               SOUNDING_TAIL_SECONDS);
+        this.stage.setSounding(heard);
+        this.ribbon?.setSounding(heard);
+      }
 
       // Drawn every frame while playing, rather than only when the trajectory position
       // moves: the chords and the lit cells change on every one of them even when the
@@ -956,6 +978,7 @@ class Player {
 
   _wireControls() {
     $('play').addEventListener('click', () => this.toggle());
+    $('music-toggle').addEventListener('change', (e) => this.setShowMusic(e.target.checked));
     $('volume').addEventListener('input', (e) => {
       this.audio.setVolume(Number(e.target.value) / 100);
     });

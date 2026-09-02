@@ -169,6 +169,26 @@ def test_the_claim_that_matters_is_not_behind_a_click(client):
     assert "<details" not in summary, "the summary itself must not collapse"
 
 
+def test_the_joke_is_styled_by_a_rule_that_exists(client):
+    """`.honesty .joke` outlived the block it was scoped to and styled nothing for a while.
+
+    A selector aimed at a class that no longer exists fails silently and reads as a design
+    choice, so the pairing is checked rather than assumed: the markup uses the class, and
+    the stylesheet has a rule that can actually match it.
+    """
+    html = client.get("/").get_data(as_text=True)
+    assert 'class="joke"' in html
+    css = (REPO / "static" / "buttfold.css").read_text()
+    rules = [line for line in css.splitlines() if ".joke" in line and "{" in line]
+    assert rules, "nothing in the stylesheet styles the joke"
+    for rule in rules:
+        scope = rule.split("{")[0].strip()
+        prefix = scope.split(".joke")[0].strip()
+        if prefix:
+            assert prefix.lstrip(".") in html, (
+                f"{scope} is scoped to {prefix}, which is not in the served page")
+
+
 def test_the_detail_is_present_even_though_it_is_collapsed(client):
     """Collapsed is not absent. A `<details>` keeps its content in the DOM, so the full
     disclosure is still served, still searchable, and still there for a reader who opens

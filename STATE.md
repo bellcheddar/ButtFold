@@ -348,6 +348,15 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       test used to enforce that by banning `<details>` from the block outright; it now
       asserts the split, which is what the rule was always about. The second panel says how
       the music is made, feature by feature, from the sonifier's own mapping table.
+- [x] **"Show the music" turns both drawings off**, bottom right of the viewer, on by
+      default. Named for what it does rather than for the strip alone: what it controls is
+      the music drawn on the structure, and only one of the two things it draws is about
+      secondary structure. Off, the stage is the plain cartoon fold and the badge and the
+      control drop to the stage's edge so there is no empty band where the strip was. Found
+      a dead selector while moving the disclosure's emphasis onto the joke: `.honesty .joke`
+      outlived the block it was scoped to when that became a panel, so the line had been
+      rendering as plain body text and looking like a choice. A test now checks that
+      whatever scopes `.joke` is actually on the page.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [x] **Genie 2 gallery entries**, three of them: an all-alpha 64-mer, a mixed alpha/beta
       72-mer and an 80-residue helical bundle, each a backbone that has never existed. Baked
