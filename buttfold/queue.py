@@ -33,6 +33,8 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+from buttfold import uniprot
+
 NATIVES = REPO / "data" / "natives"
 
 # Caps. Every one of these is a measured number or a deliberate policy, and they live here
@@ -85,16 +87,22 @@ def cache_key(protein_id: str, seed: int, steps: int, kt: float, kt_final: float
 
 
 def whitelisted() -> dict[str, dict]:
-    """The proteins the queue will fold: the committed natives, and nothing else.
+    """The proteins the queue will fold: the committed natives and the screened catalogue.
 
-    No arbitrary uploads at launch. A user-supplied structure is a user-supplied amount of
-    CPU, and the whole point of the caps is that the work is bounded and known.
+    Still no arbitrary uploads. A user-supplied sequence is a user-supplied amount of CPU,
+    and the point of the caps is that the work is bounded and known - so the ESMFold engine
+    offers a committed list that was screened offline rather than a text box. Every entry's
+    residue count is known here without a network call, which is what lets the web process
+    enforce the cap before accepting a job.
     """
     out = {}
     for path in sorted(NATIVES.glob("*.json")):
         record = json.loads(path.read_text())
         out[record["id"]] = {"id": record["id"], "name": record["name"],
                              "residueCount": record["residueCount"]}
+    for queue_id, entry in uniprot.catalogue().items():
+        out[queue_id] = {"id": queue_id, "name": entry["name"],
+                         "residueCount": entry["residueCount"]}
     return out
 
 
@@ -122,9 +130,16 @@ class JobQueue:
         catalogue = whitelisted()
         entry = catalogue.get(protein_id)
         if entry is None:
+            # An honest refusal names what IS available. The gallery is short enough to
+            # list; the ESMFold catalogue is two dozen entries, so it gets a count and the
+            # route that returns it rather than a wall of accessions.
+            gallery = sorted(i for i in catalogue if not uniprot.is_uniprot(i))
+            predicted = sum(1 for i in catalogue if uniprot.is_uniprot(i))
             raise NotAllowed(
                 f"{protein_id!r} is not one of the proteins this queue folds. "
-                f"Available: {', '.join(sorted(catalogue))}")
+                f"The gallery is {', '.join(gallery)}"
+                + (f", and /api/uniprot lists {predicted} UniProt entries the ESMFold "
+                   "engine offers." if predicted else "."))
         if entry["residueCount"] > RESIDUE_CAP:
             raise NotAllowed(
                 f"{entry['name']} is {entry['residueCount']} residues and this server folds "

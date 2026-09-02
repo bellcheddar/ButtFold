@@ -292,6 +292,27 @@ for (const [width, height] of [[1440, 900], [1280, 800], [1512, 982], [1366, 768
     };
   })()`));
 }
+// And the same four sizes with the ESMFold engine selected, because that mode adds a row
+// above the stage. The first version of this row was `display: flex`, which beats the
+// browser's own `[hidden] { display: none }`, so it took its height even while hidden and
+// pushed the readouts below the fold in EVERY mode.
+const withPulldown = [];
+for (const [width, height] of [[1440, 900], [1280, 800], [1366, 768]]) {
+  await send('Emulation.setDeviceMetricsOverride',
+             { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await sleep(300);
+  withPulldown.push(await evaluate(`(() => {
+    document.querySelector('#engine-mode button[data-source="queued"]').click();
+    const row = document.getElementById('uniprot-row').getBoundingClientRect();
+    return {
+      size: '${width}x${height}',
+      rowHeight: Math.round(row.height),
+      readoutsBottom: Math.round(
+        document.querySelector('.readouts').getBoundingClientRect().bottom),
+      viewportHeight: window.innerHeight,
+    };
+  })()`));
+}
 await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
 
 // And the page must be usable on a phone: the stage is specified as roughly the lower half
@@ -458,6 +479,15 @@ if (mobile.bodyScrollWidth > mobile.viewportWidth + 1) {
 if (!(mobile.stageHeight >= 300)) {
   failures.push(`the stage is only ${mobile.stageHeight}px tall on a phone`);
 }
+for (const d of withPulldown) {
+  if (d.readoutsBottom > d.viewportHeight) {
+    failures.push(`at ${d.size} with the ESMFold pulldown open the readouts end at `
+                  + `${d.readoutsBottom}px, ${d.readoutsBottom - d.viewportHeight}px below `
+                  + `the ${d.viewportHeight}px fold`);
+  }
+}
+console.log(`esmfold mode  pulldown row ${withPulldown[0].rowHeight}px, readouts end at `
+            + withPulldown.map(d => `${d.readoutsBottom}/${d.viewportHeight}`).join(', '));
 if (!mobile.controlsReachable) failures.push('a control is off the right edge on a phone');
 if (mobile.chartCanvases.length !== 2) {
   failures.push(`${mobile.chartCanvases.length} chart canvases on a phone, want 2`);

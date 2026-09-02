@@ -17,6 +17,7 @@ GET, not `curl -I`.
 
 from __future__ import annotations
 
+import html as html_module
 import json
 import re
 import sys
@@ -39,7 +40,12 @@ DISCLOSURE_PARAGRAPH = (
     "ButtFold shows a simple physics model relaxing a chain into a structure it already "
     "knows, and what a generative network's inventions look and sound like. It is not a "
     "prediction of an unknown structure, it is not a physical folding pathway, and no "
-    "protein folds this way. The 150 poses in each trajectory are 50,000 integration steps "
+    "protein folds this way. The ESMFold engine adds a second claim on top of that one and "
+    "they are separate: ESMFold, running at Meta rather than here, predicts where a real "
+    "UniProt protein ends up, and the G\u014d model then animates a chain collapsing toward "
+    "that prediction. The prediction can be wrong, which is why every protein offered has "
+    "an experimental structure in the PDB to check it against. The 150 poses in each "
+    "trajectory are 50,000 integration steps "
     "apart, far enough that an atom can move further than the protein is wide between two "
     "of them; what you see in between is drawn to join them up, not computed, so the "
     "motion is smooth where the model is not. The music is a faithful map of the "
@@ -65,9 +71,14 @@ def visible_text(html: str) -> str:
     Comments go too. The template explains in a comment why Apple's badge artwork is not
     used yet, and that comment contains the badge's own wording; a check that grepped the
     source would fail on its own documentation.
+
+    Entities are decoded, because a reader sees "G\u014d" where the template writes
+    "&#333;". Without that this compared the approved wording against the source's escapes
+    and only passed as long as the approved wording happened to contain no accented letter.
     """
     without_comments = re.sub(r"<!--.*?-->", " ", html, flags=re.S)
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", without_comments)).strip()
+    stripped = re.sub(r"<[^>]+>", " ", without_comments)
+    return re.sub(r"\s+", " ", html_module.unescape(stripped)).strip()
 
 
 def shop_link(html: str) -> str:

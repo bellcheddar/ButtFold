@@ -88,9 +88,23 @@
              its title rather than just looking broken. -->
         <button type="button" data-source="live" aria-pressed="false" disabled>Live</button>
         <button type="button" data-source="queued" aria-pressed="false"
-                title="Fold it on the server instead: one job at a time, up to {{ residueCap }} residues">On the server</button>
+                title="Pick a real protein from UniProt: ESMFold predicts its structure and the server folds a chain toward it. One job at a time, up to {{ residueCap }} residues">ESMFold</button>
       </div>
     </div>
+  </div>
+
+  <!-- Only in ESMFold mode, and on its own row rather than in the control bar: that bar is
+       already 1060 px of the 1100 px it wraps at, and a select in it would push the engine
+       group onto a second line at every screen size the layout gate checks.
+
+       A pulldown rather than a text box, deliberately. A sequence somebody types is an
+       unbounded amount of CPU on a shared 2-core droplet, and the whole point of the queue's
+       caps is that the work is bounded and known. Every entry here was screened by actually
+       predicting it: see tools/build_uniprot_catalogue.py. -->
+  <div class="uniprot-row" id="uniprot-row" hidden>
+    <label class="label" for="uniprot-pick">UniProt</label>
+    <select id="uniprot-pick" class="uniprot-pick"></select>
+    <span class="uniprot-note" id="uniprot-note"></span>
   </div>
 
   <!-- The viewer and its two time series, side by side: the structure is the
@@ -199,7 +213,12 @@
     mentioned.</span> ButtFold shows a simple physics model relaxing a chain into a structure
     it already knows, and what a generative network's inventions look and sound like. It is
     not a prediction of an unknown structure, it is not a physical folding pathway, and no
-    protein folds this way. The 150 poses in each trajectory are 50,000 integration steps
+    protein folds this way. The ESMFold engine adds a second claim on top of that one and
+    they are separate: ESMFold, running at Meta rather than here, predicts where a real
+    UniProt protein ends up, and the G&#333; model then animates a chain collapsing toward
+    that prediction. The prediction can be wrong, which is why every protein offered has an
+    experimental structure in the PDB to check it against. The 150 poses in each trajectory
+    are 50,000 integration steps
     apart, far enough that an atom can move further than the protein is wide between two of
     them; what you see in between is drawn to join them up, not computed, so the motion is
     smooth where the model is not. The music is a faithful map of the simulation's events,

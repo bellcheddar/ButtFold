@@ -150,6 +150,15 @@ echo "$health" | grep -q '"folds": *[6-9]' && check "the gallery is served" yes 
 curl -sf -m 15 "$BASE/api/native/trp_cage" | grep -q '"coil"' \
   && check "/api/native/<id> serves the coil" yes || check "/api/native/<id> serves the coil" ""
 
+# The ESMFold engine is only as good as its pulldown, and an empty catalogue leaves an
+# enabled engine button beside a select with nothing in it. Counted rather than merely
+# fetched: a route that returns {"entries": []} is a 200.
+UNIPROT_COUNT=$(curl -sf -m 15 "$BASE/api/uniprot" \
+  | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["entries"]))' 2>/dev/null || echo 0)
+[ "${UNIPROT_COUNT:-0}" -ge 10 ] \
+  && check "the UniProt catalogue is served ($UNIPROT_COUNT entries)" yes \
+  || check "the UniProt catalogue is served (got ${UNIPROT_COUNT:-0} entries)" ""
+
 page=$(curl -sf -m 20 "$BASE/")
 # The disclosure paragraph, on the live page, whitespace-normalised the way a reader sees
 # it. PLAN section 11's Phase 5 gate, run against the deployed site rather than a template.

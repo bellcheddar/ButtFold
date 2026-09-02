@@ -49,11 +49,27 @@ byte-identical frame objects, which is tested rather than asserted.
 |---|---|---|---|
 | **Gallery** | Six precomputed folds | none | Always. First paint, no capability check, no wait |
 | **Fold it live** | The same C compiled to WebAssembly, in a Web Worker | your CPU | The primary interactive path where the browser can run it |
-| **On the server** | The same C compiled natively, one job at a time | droplet, bounded | The fallback, and anything too heavy for a phone |
+| **ESMFold** | ESMFold predicts a real UniProt protein at Meta; the same C, compiled natively, folds a chain toward that prediction here | ~1 s at Meta, then the droplet | Pick a protein nobody precomputed |
 
 A fold the server computes is baked into the gallery's own artefact format, so a queued result
 plays through the identical player with no code path of its own, and converges the cache: a
 protein folded once is served from disk forever after.
+
+**The ESMFold engine keeps two claims apart.** ESMFold predicts where a protein ends up; the
+Gō model animates a chain collapsing toward that prediction. The second was never a physical
+folding pathway and the first can be wrong, so the badge says `predicted at Meta, folded here`
+rather than anything implying this server did the science. It runs at Meta because
+`facebook/esmfold_v1` is an 8.44 GB checkpoint and the droplet has 3.9 GB with no swap —
+not slow, impossible.
+
+The 24 proteins on offer were **screened by predicting every candidate**, not by name. Ranking
+UniProt's reviewed 40–76-residue entries by how well studied they are returns twenty-five
+ribosomal proteins in the top twenty-five, and a ribosomal protein is only folded inside the
+ribosome. Two measurements do the filtering — ESMFold's own mean pLDDT ≥ 0.70, and a radius of
+gyration within 1.20× of the folded-globule scaling the sonifier already uses. That second bar
+was moved from 1.35 by a fold that failed its bake gate, and the three entries it removed were
+a dimer, an 11-mer and a dodecamer: proteins that *are* folded alone but are only compact as an
+assembly, which is the ribosomal error one step subtler.
 
 **Both computed paths are watched as they happen**, which for the server means the browser reads
 the coordinate file the droplet is still writing to. Progress there was a percentage over a still
@@ -130,7 +146,7 @@ matter here are the ones where every unit test passes and the page does nothing.
 | Gate | What it proves |
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
-| pytest, 61 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
+| pytest, 72 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
 | `node --test`, 44 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |

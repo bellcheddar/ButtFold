@@ -158,6 +158,42 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
 .segmented button[aria-pressed="true"] { background: var(--bf-action); color: #fff; }
 .segmented button[disabled] { opacity: 0.4; cursor: not-allowed; }
 
+/* The UniProt pulldown, on its own row and only in ESMFold mode. It is not in the control
+   bar because that bar is 1060 px of the 1100 px it wraps at, measured, and a select in it
+   would push the engine group onto a second line everywhere. */
+.uniprot-row {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px; flex-wrap: wrap;
+}
+/* `display: flex` beats the browser's `[hidden] { display: none }`, so the row kept its
+   height while hidden and pushed the readouts 42 px below the fold at three of the four
+   screen sizes the layout gate checks. An attribute that means "not here" has to be said
+   again by anything that sets display. */
+.uniprot-row[hidden] { display: none; }
+/* Measured, not added up: the row is 30 px of control plus 12 px of margin. */
+body.picking-uniprot { --bf-page-chrome: 302px; }
+.uniprot-row .label {
+  color: var(--bf-text-2); font-size: 10.5px; text-transform: uppercase;
+  letter-spacing: 0.06em; white-space: nowrap;
+}
+.uniprot-pick {
+  appearance: none;
+  background: var(--bf-ground-raised) url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'>\
+<path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238b93b5' stroke-width='1.6'\
+ stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 12px center;
+  background-size: 10px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--bf-radius-pill);
+  color: var(--bf-text-1); font: 500 12px/1 var(--bf-sans);
+  padding: 8px 32px 8px 14px; cursor: pointer; max-width: 100%;
+}
+.uniprot-pick:hover { border-color: rgba(255, 255, 255, 0.16); }
+.uniprot-note {
+  font: 500 11px/1.4 var(--bf-mono); color: var(--bf-text-2);
+}
+.uniprot-note:empty { display: none; }
+
 /* ---------------------------------------------------------------- the viewer ----------
    The structure and its two time series, side by side. The charts used to sit below the
    readouts, where they added about 130 px and pushed the transport off a short screen; the
@@ -201,7 +237,10 @@ a:hover { color: var(--bf-cyan); text-decoration: underline; }
      they should. The ceiling rose to 620 because the transport is inside the frame now. The
      floor keeps a very short window usable by letting the page scroll rather than crushing
      the stage. */
-  height: clamp(260px, calc(100vh - 260px), 620px);
+  /* The subtrahend is a variable because the ESMFold engine adds a row above the stage:
+     without this the pulldown pushed the readouts 42 px below the fold at three of the four
+     sizes the layout gate checks, which is the same mistake as sizing the stage on paper. */
+  height: clamp(260px, calc(100vh - var(--bf-page-chrome, 260px)), 620px);
   touch-action: none;   /* drag orbits the structure; it must not scroll the page */
 }
 /* On a phone the page scrolls anyway, so the stage takes a share of the viewport rather

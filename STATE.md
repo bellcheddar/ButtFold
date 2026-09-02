@@ -299,6 +299,21 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       off. The disclosure paragraph now says the in-between is drawn rather than computed,
       and `test_honesty` pins that sentence - the two test files that each kept their own
       copy of the approved wording now share one.
+- [x] **The ESMFold engine replaces "On the server".** Pick one of 24 UniProt proteins,
+      ESMFold predicts it at Meta in about a second, and the Gō model folds a chain toward
+      that prediction here; everything downstream is untouched, because the only thing that
+      differs is where the native state came from. Measured live: 134 s for the 40-residue
+      entry on the droplet under its CPU quota, 36 distinct frame counts streamed while it
+      ran, and a repeat of the same seed back in 0.4 s from cache. Four bugs found on the
+      way, three of them older than this work: `bake_frames` raised its "this did not
+      collapse" diagnosis using a name that only existed in its caller, so the one path
+      designed to fail loudly raised `NameError` instead - and only ever for a queued fold,
+      where nobody was watching a console. `_job_stream` read `data/natives/<id>.json`
+      directly, so an ESMFold job 404ed its frames route and showed a flat zero for progress.
+      `.uniprot-row { display: flex }` beat the browser's own `[hidden] { display: none }`
+      and pushed the readouts below the fold in every mode. And the coil seed used Python's
+      `hash()`, which is randomised per process, so the same protein would have started from
+      a different chain after every worker restart while the cache key said otherwise.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
       card and the stage.

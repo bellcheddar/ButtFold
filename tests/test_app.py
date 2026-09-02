@@ -30,17 +30,11 @@ from app import app as flask_app  # noqa: E402
 from tests.test_honesty import DISCLOSURE_PARAGRAPH  # noqa: E402
 
 
-def visible_text(html: str) -> str:
-    """Tags stripped and whitespace collapsed, which is what a reader actually sees.
-
-    The disclosure paragraph is line-wrapped in the template, as prose in a template
-    always will be, so a byte-for-byte substring search of the source fails on text that
-    renders perfectly. HTML collapses runs of whitespace, so this is the comparison that
-    means what the Phase 5 gate wants it to mean, and the deploy-time check against the
-    live page normalises the same way for the same reason.
-    """
-    without_tags = re.sub(r"<[^>]+>", " ", html)
-    return re.sub(r"\s+", " ", without_tags).strip()
+# The same helper, from the same place as the approved wording. There were two copies of
+# this as well as two copies of the paragraph, and the second copy did not decode entities -
+# so it compared prose against the template's own "&#333;" and passed only for as long as
+# the approved wording contained no accented letter. One definition of "what a reader sees".
+from tests.test_honesty import visible_text  # noqa: E402,F401
 
 
 @pytest.fixture()

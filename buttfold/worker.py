@@ -20,6 +20,7 @@ long, and turn its output into the same artefact the gallery ships.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import signal
 import subprocess
@@ -32,7 +33,70 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
 
 from buttfold import queue as jobs  # noqa: E402
-from buttfold.paths import CACHE_DIR, QUEUE_DB, WORK_DIR  # noqa: E402
+from buttfold.paths import CACHE_DIR, PREDICTION_CACHE, QUEUE_DB, WORK_DIR  # noqa: E402
+
+
+def resolve_native(protein_id: str, log) -> dict:
+    """The native state this job folds toward, whatever produced it.
+
+    Two sources, one record shape. A gallery protein reads its committed crystal structure
+    off disk; a UniProt entry has ESMFold predict one. Everything after this line is
+    identical, which is the same rule the three frame sources follow: the difference lives
+    at the edge and nothing downstream can tell them apart.
+    """
+    import numpy as np
+
+    from coil import load_native, random_coil
+
+    from buttfold import uniprot
+
+    if not uniprot.is_uniprot(protein_id):
+        record = load_native(protein_id)
+        record.setdefault("provenance", "structure-based-go")
+        return record
+
+    accession = uniprot.accession_of(protein_id)
+    entry = uniprot.catalogue().get(protein_id)
+    if entry is None:
+        raise RuntimeError(f"{accession} is not in the catalogue")
+
+    began = time.time()
+    prediction = uniprot.cached_prediction(accession, entry["sequence"], PREDICTION_CACHE)
+    log(f"  ESMFold {accession}: {len(prediction['ca'])} residues in "
+        f"{time.time() - began:.1f} s at ESM Atlas")
+
+    # The starting coil is seeded from the accession, so the same protein always starts from
+    # the same chain and two folds of it differ only by the model's own seed - exactly the
+    # arrangement the committed gallery uses.
+    n = len(prediction["ca"])
+    # A STABLE hash. Python randomises `hash()` on strings per process by default, so the
+    # coil would have differed between worker restarts and the "same protein, same starting
+    # chain" promise the gallery makes would have been quietly false - and the cache key,
+    # which does not include the coil, would have served two different trajectories under
+    # one id.
+    seed_bytes = hashlib.sha256(accession.encode()).digest()[:4]
+    rng = np.random.default_rng(int.from_bytes(seed_bytes, "big"))
+    plddt = prediction["plddt"]
+    return {
+        "id": protein_id,
+        "name": entry["name"],
+        "organism": entry["organism"],
+        "sequence": entry["sequence"],
+        "residueCount": n,
+        "ca": prediction["ca"],
+        "coil": random_coil(n, rng).tolist(),
+        "coilSeed": accession,
+        "referencePdb": (entry.get("pdbs") or [None])[0],
+        "provenance": "esmfold-prediction-go",
+        "prediction": {
+            "accession": accession,
+            "entryName": entry.get("entryName"),
+            "predictor": "ESMFold v1 at the ESM Metagenomic Atlas",
+            "meanPlddt": round(sum(plddt) / len(plddt), 3) if plddt else None,
+            "plddt": [round(v, 3) for v in plddt],
+            "pdbs": entry.get("pdbs", []),
+        },
+    }
 
 
 def fold_and_bake(job: dict, log) -> Path:
@@ -46,10 +110,10 @@ def fold_and_bake(job: dict, log) -> Path:
     import numpy as np
 
     import bake_gallery as baker
-    from coil import load_native, random_coil, write_xyz
+    from coil import write_xyz
 
     protein_id, seed = job["protein_id"], job["seed"]
-    record = load_native(protein_id)
+    record = resolve_native(protein_id, log)
     native = np.asarray(record["ca"], dtype=np.float64)
     n = len(native)
     steps = baker.STEPS_PER_RESIDUE * n
@@ -101,7 +165,14 @@ def fold_and_bake(job: dict, log) -> Path:
     ca = baker.read_frames(frames_path)
     baked = baker.bake_frames(record, ca, wall)
     baked["engine"] = "go"
-    baked["provenance"] = "structure-based-go"
+    # Where the target came from, which the badge reads. A fold toward a crystal structure
+    # and a fold toward a prediction are two different claims and the page makes both.
+    baked["provenance"] = record.get("provenance", "structure-based-go")
+    baked["name"] = record["name"]
+    baked["organism"] = record.get("organism")
+    baked["referencePdb"] = record.get("referencePdb")
+    if record.get("prediction"):
+        baked["prediction"] = record["prediction"]
     baked["id"] = job["cache_key"]
     baked["queued"] = {"jobId": job["id"], "proteinId": protein_id, "seed": seed,
                        "seconds": round(wall, 1)}

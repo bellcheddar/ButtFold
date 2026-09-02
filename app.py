@@ -21,8 +21,9 @@ from pathlib import Path
 from flask import Flask, jsonify, make_response, render_template, request, send_from_directory
 
 from buttfold import store
+from buttfold import uniprot
 from buttfold import queue as jobs
-from buttfold.paths import QUEUE_DB, WORK_DIR
+from buttfold.paths import PREDICTION_CACHE, QUEUE_DB, WORK_DIR
 
 REPO = Path(__file__).resolve().parent
 VERSION = "0.1.0"
@@ -148,6 +149,26 @@ FOLD_PARAMS = {
 }
 
 
+@app.route("/api/uniprot")
+def api_uniprot():
+    """The catalogue the ESMFold engine offers.
+
+    Committed and screened rather than a live UniProt query: a pulldown backed by a network
+    call is a pulldown that is sometimes empty, and every entry here was predicted once and
+    kept only if it came back as a confident, compact domain. `tools/build_uniprot_catalogue.py`
+    has the numbers and the reason a name-based filter was not enough.
+    """
+    entries = [
+        {"id": queue_id, "accession": e["accession"], "name": e["name"],
+         "organism": e["organism"], "residueCount": e["residueCount"],
+         "meanPlddt": e["meanPlddt"], "pdbs": e.get("pdbs", [])}
+        for queue_id, e in sorted(uniprot.catalogue().items(),
+                                  key=lambda kv: (kv[1]["residueCount"], kv[1]["name"]))
+    ]
+    return _revalidating({"entries": entries, "residueCap": LIVE_RESIDUE_CAP},
+                         f"{build_version()}-uniprot")
+
+
 @app.route("/api/native/<protein_id>")
 def api_native(protein_id: str):
     """What the browser needs to fold this protein itself: the native state and the coil.
@@ -262,13 +283,64 @@ def _job_stream(job_id: str) -> tuple[Path, int] | None:
     if status is None:
         return None
     path = WORK_DIR / job_id / "frames.bin"
-    try:
-        record = json.loads(
-            (REPO / "data" / "natives" / f"{status['protein_id']}.json").read_text())
-        per_frame = record["residueCount"] * 3 * 4
-    except (OSError, KeyError, TypeError, ValueError):
+    # From the queue's own whitelist, which knows both sources. This used to read
+    # `data/natives/<protein_id>.json` directly, which is only where a GALLERY protein lives:
+    # an ESMFold job looked for `data/natives/uniprot:P0A9X9.json`, got an OSError, and the
+    # route 404ed while the progress figure read a flat zero for the whole fold. One place
+    # knows how many residues a job has, and it is the place that accepted the job.
+    entry = jobs.whitelisted().get(status["protein_id"])
+    if entry is None:
         return None
+    per_frame = entry["residueCount"] * 3 * 4
     return (path, per_frame) if per_frame else None
+
+
+@app.route("/api/queue/<job_id>/native")
+def api_queue_native(job_id: str):
+    """The native state a running job is folding toward.
+
+    For a gallery protein this is a committed file and `/api/native/<id>` serves it. For an
+    ESMFold job it is a prediction that lives at Meta and then in this server's cache, so
+    the browser has to ask the job for it - and it needs it for the same reason it needs the
+    committed one: to score contacts against while it watches the fold stream in.
+
+    The prediction is only read here, never made. The worker makes it, once, and this fails
+    honestly if the job has not got that far rather than firing a request at a free endpoint
+    on a page load.
+    """
+    status = _queue.status(job_id)
+    if status is None:
+        return jsonify({"error": f"no job {job_id!r}"}), 404
+    protein_id = status["protein_id"]
+    if not uniprot.is_uniprot(protein_id):
+        return jsonify({"error": "this job folds a committed protein; use /api/native"}), 404
+
+    accession = uniprot.accession_of(protein_id)
+    entry = uniprot.catalogue().get(protein_id)
+    cached = PREDICTION_CACHE / f"{accession}.json"
+    if entry is None or not cached.exists():
+        response = jsonify({"error": "the prediction is not ready yet", "state": status["state"]})
+        response.status_code = 409
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    prediction = json.loads(cached.read_text())
+    payload = {
+        "id": protein_id,
+        "name": entry["name"],
+        "organism": entry["organism"],
+        "sequence": entry["sequence"],
+        "residueCount": entry["residueCount"],
+        "ca": prediction["ca"],
+        "plddt": prediction["plddt"],
+        "params": FOLD_PARAMS,
+        "predictor": "ESMFold v1 at the ESM Metagenomic Atlas",
+    }
+    response = jsonify(payload)
+    # Deterministic for a sequence, so it may be cached hard - but keyed on the job, which
+    # is not, so it revalidates.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.route("/api/queue/<job_id>/frames")

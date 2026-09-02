@@ -25,6 +25,13 @@ STATE_DIR = _from_env("BUTTFOLD_STATE", REPO / "build" / "state")
 QUEUE_DB = _from_env("BUTTFOLD_QUEUE_DB", STATE_DIR / "queue.db")
 WORK_DIR = _from_env("BUTTFOLD_WORK", STATE_DIR / "work")
 
+# ESMFold predictions, cached by accession. Under the state directory rather than in the
+# tree, like everything else the app writes: a deploy rsyncs over the tree, so a prediction
+# left there would be destroyed on the next deploy or survive as a stale file nobody expects.
+# ESMFold is deterministic for a given sequence, so this is a pure cache - and it means a
+# protein folded twice costs Meta's free endpoint one request rather than two.
+PREDICTION_CACHE = _from_env("BUTTFOLD_PREDICTIONS", STATE_DIR / "predictions")
+
 # Finished jobs, baked into the gallery's own artefact format. Served by /api/fold/<id>
 # through the same store the gallery uses, so a queued fold plays through the identical
 # player with no code path of its own.

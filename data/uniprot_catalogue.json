@@ -1,0 +1,443 @@
+{
+ "generated": "2026-09-02",
+ "source": "UniProtKB reviewed, with an experimental structure in the PDB",
+ "screen": {
+  "query": "(reviewed:true) AND (length:[40 TO 76]) AND (database:pdb)",
+  "minMeanPlddt": 0.7,
+  "maxRgRatio": 1.2,
+  "note": "Every entry was predicted and measured; see tools/build_uniprot_catalogue.py for why a name filter was not enough."
+ },
+ "entries": [
+  {
+   "accession": "P60514",
+   "entryName": "TXP1_PSACA",
+   "name": "Psalmotoxin-1",
+   "organism": "Psalmopoeus cambridgei",
+   "residueCount": 40,
+   "sequence": "EDCIPKWKGCVNRHGDCCEGLECWKRRRSFEVCVPKTPKT",
+   "pdbs": [
+    "1LMM",
+    "2KNI",
+    "3S3X",
+    "4FZ0"
+   ],
+   "pdbCount": 5,
+   "meanPlddt": 0.862,
+   "predictedRg": 9.7,
+   "expectedRg": 8.94
+  },
+  {
+   "accession": "P04170",
+   "entryName": "RUBR1_DESDA",
+   "name": "Rubredoxin-1",
+   "organism": "Desulfovibrio desulfuricans",
+   "residueCount": 45,
+   "sequence": "MQKYVCNVCGYEYDPAEHDNVPFDQLPDDWCCPVCGVSKDQFSPA",
+   "pdbs": [
+    "6NW0",
+    "6NW1",
+    "6RXN",
+    "9OVF"
+   ],
+   "pdbCount": 4,
+   "meanPlddt": 0.95,
+   "predictedRg": 9.35,
+   "expectedRg": 9.35
+  },
+  {
+   "accession": "P00270",
+   "entryName": "RUBR_MEGGA",
+   "name": "Rubredoxin",
+   "organism": "Megalodesulfovibrio gigas",
+   "residueCount": 52,
+   "sequence": "MDIYVCTVCGYEYDPAKGDPDSGIKPGTKFEDLPDDWACPVCGASKDAFEKQ",
+   "pdbs": [
+    "1E8J",
+    "1RDG",
+    "1SPW",
+    "2DSX"
+   ],
+   "pdbCount": 4,
+   "meanPlddt": 0.954,
+   "predictedRg": 9.54,
+   "expectedRg": 9.87
+  },
+  {
+   "accession": "P56552",
+   "entryName": "DEF_PENBA",
+   "name": "Defensin-like protein",
+   "organism": "Pentadiplandra brazzeana",
+   "residueCount": 54,
+   "sequence": "QDKCKKVYENYPVSKCQLANQCNYDCKLDKHARSGECFYDEKRNLQCICDYCEY",
+   "pdbs": [
+    "1BRZ",
+    "2BRZ",
+    "2KGQ",
+    "2KYQ"
+   ],
+   "pdbCount": 11,
+   "meanPlddt": 0.892,
+   "predictedRg": 10.36,
+   "expectedRg": 10.02
+  },
+  {
+   "accession": "P0AFW2",
+   "entryName": "RMF_ECOLI",
+   "name": "Ribosome modulation factor",
+   "organism": "Escherichia coli",
+   "residueCount": 55,
+   "sequence": "MKRQKRDRLERAHQRGYQAGIAGRSKEMCPYQTLNQRSQWLGGWREAMADRVVMA",
+   "pdbs": [
+    "4V8G",
+    "6H4N",
+    "6H58",
+    "9IOT"
+   ],
+   "pdbCount": 4,
+   "meanPlddt": 0.888,
+   "predictedRg": 11.4,
+   "expectedRg": 10.09
+  },
+  {
+   "accession": "P31713",
+   "entryName": "VKT1_STIHL",
+   "name": "PI-stichotoxin-She2a",
+   "organism": "Stichodactyla helianthus",
+   "residueCount": 55,
+   "sequence": "SICSEPKKVGRCKGYFPRFYFDSETGKCTPFIYGGCGGNGNNFETLHQCRAICRA",
+   "pdbs": [
+    "1SHP",
+    "3M7Q",
+    "3OFW",
+    "3T62"
+   ],
+   "pdbCount": 5,
+   "meanPlddt": 0.949,
+   "predictedRg": 10.26,
+   "expectedRg": 10.09
+  },
+  {
+   "accession": "Q97ZE3",
+   "entryName": "CREN7_SACS2",
+   "name": "Chromatin protein Cren7",
+   "organism": "Saccharolobus solfataricus",
+   "residueCount": 60,
+   "sequence": "MSSGKKPVKVKTPAGKEAELVPEKVWALAPKGRKGVKIGLFKDPETGKYFRHKLPDDYPI",
+   "pdbs": [
+    "2JTM",
+    "3KXT",
+    "3LWH",
+    "3LWI"
+   ],
+   "pdbCount": 14,
+   "meanPlddt": 0.828,
+   "predictedRg": 12.01,
+   "expectedRg": 10.43
+  },
+  {
+   "accession": "P0C1Z0",
+   "entryName": "3SE2_DENAN",
+   "name": "Fasciculin-2",
+   "organism": "Dendroaspis angusticeps",
+   "residueCount": 61,
+   "sequence": "TMCYSHTTTSRAILTNCGENSCYRKSRRHPPKMVLGRGCGCPPGDDNLEVKCCTSPDKCNY",
+   "pdbs": [
+    "1B41",
+    "1F8U",
+    "1FSC",
+    "1FSS"
+   ],
+   "pdbCount": 9,
+   "meanPlddt": 0.815,
+   "predictedRg": 10.91,
+   "expectedRg": 10.49
+  },
+  {
+   "accession": "P39476",
+   "entryName": "DN7D_SACS2",
+   "name": "DNA-binding protein 7d",
+   "organism": "Saccharolobus solfataricus",
+   "residueCount": 64,
+   "sequence": "MATVKFKYKGEEKEVDISKIKKVWRVGKMISFTYDEGGGKTGRGAVSEKDAPKELLQMLEKQKK",
+   "pdbs": [
+    "1BBX",
+    "1BNZ",
+    "1C8C",
+    "1JIC"
+   ],
+   "pdbCount": 22,
+   "meanPlddt": 0.911,
+   "predictedRg": 10.94,
+   "expectedRg": 10.68
+  },
+  {
+   "accession": "P61991",
+   "entryName": "DN7A_SACS2",
+   "name": "DNA-binding protein 7a",
+   "organism": "Saccharolobus solfataricus",
+   "residueCount": 64,
+   "sequence": "MATVKFKYKGEEKQVDISKIKKVWRVGKMISFTYDEGGGKTGRGAVSEKDAPKELLQMLEKQKK",
+   "pdbs": [
+    "1B4O",
+    "1JIC",
+    "1SSO",
+    "2CVR"
+   ],
+   "pdbCount": 5,
+   "meanPlddt": 0.908,
+   "predictedRg": 10.94,
+   "expectedRg": 10.68
+  },
+  {
+   "accession": "P85092",
+   "entryName": "3SI1A_DENAN",
+   "name": "Toxin AdTx1",
+   "organism": "Dendroaspis angusticeps",
+   "residueCount": 65,
+   "sequence": "LTCVTSKSIFGITTEDCPDGQNLCFKRRHYVVPKIYDSTRGCAATCPIPENYDSIHCCKTDKCNE",
+   "pdbs": [
+    "4IYE",
+    "5MG9",
+    "8HN1"
+   ],
+   "pdbCount": 3,
+   "meanPlddt": 0.89,
+   "predictedRg": 11.78,
+   "expectedRg": 10.75
+  },
+  {
+   "accession": "P13123",
+   "entryName": "DN7D_SULAC",
+   "name": "DNA-binding protein 7d",
+   "organism": "Sulfolobus acidocaldarius",
+   "residueCount": 66,
+   "sequence": "MVKVKFKYKGEEKEVDTSKIKKVWRVGKMVSFTYDDNGKTGRGAVSEKDAPKELLDMLARAEREKK",
+   "pdbs": [
+    "1AZP",
+    "1AZQ",
+    "1BF4",
+    "1CA5"
+   ],
+   "pdbCount": 25,
+   "meanPlddt": 0.919,
+   "predictedRg": 11.15,
+   "expectedRg": 10.81
+  },
+  {
+   "accession": "P29603",
+   "entryName": "FER_PYRFU",
+   "name": "Ferredoxin",
+   "organism": "Pyrococcus furiosus",
+   "residueCount": 67,
+   "sequence": "MAWKVSVDQDTCIGDAICASLCPDVFEMNDEGKAQPKVEVIEDEELYNCAKEAMEACPVSAITIEEA",
+   "pdbs": [
+    "1SIZ",
+    "1SJ1",
+    "2Z8Q",
+    "3PNI"
+   ],
+   "pdbCount": 5,
+   "meanPlddt": 0.942,
+   "predictedRg": 10.53,
+   "expectedRg": 10.87
+  },
+  {
+   "accession": "P32081",
+   "entryName": "CSPB_BACSU",
+   "name": "Cold shock protein CspB",
+   "organism": "Bacillus subtilis",
+   "residueCount": 67,
+   "sequence": "MLEGKVKWFNSEKGFGFIEVEGQDDVFVHFSAIQGEGFKTLEEGQAVSFEIVEGNRGPQAANVTKEA",
+   "pdbs": [
+    "1CSP",
+    "1CSQ",
+    "1NMF",
+    "1NMG"
+   ],
+   "pdbCount": 12,
+   "meanPlddt": 0.91,
+   "predictedRg": 10.52,
+   "expectedRg": 10.87
+  },
+  {
+   "accession": "P56678",
+   "entryName": "SCL3_LEIHE",
+   "name": "Alpha-like toxin Lqh3",
+   "organism": "Leiurus hebraeus",
+   "residueCount": 67,
+   "sequence": "VRDGYIAQPENCVYHCFPGSSGCDTLCKEKGGTSGHCGFKVGHGLACWCNALPDNVGIIVEGEKCHS",
+   "pdbs": [
+    "1BMR",
+    "1FH3",
+    "7K18",
+    "7XSU"
+   ],
+   "pdbCount": 4,
+   "meanPlddt": 0.834,
+   "predictedRg": 10.66,
+   "expectedRg": 10.87
+  },
+  {
+   "accession": "O00244",
+   "entryName": "ATOX1_HUMAN",
+   "name": "Copper transport protein ATOX1",
+   "organism": "Homo sapiens",
+   "residueCount": 68,
+   "sequence": "MPKHEFSVDMTCGGCAEAVSRVLNKLGGVKYDIDLPNKKVCIESEHSMDTLLATLKKTGKTVSYLGLE",
+   "pdbs": [
+    "1FE0",
+    "1FE4",
+    "1FEE",
+    "1TL4"
+   ],
+   "pdbCount": 17,
+   "meanPlddt": 0.949,
+   "predictedRg": 10.39,
+   "expectedRg": 10.93
+  },
+  {
+   "accession": "L0R8F8",
+   "entryName": "MIDUO_HUMAN",
+   "name": "Mitochondrial ribosome and complex I assembly factor AltMIEF1",
+   "organism": "Homo sapiens",
+   "residueCount": 70,
+   "sequence": "MAPWSREAVLSLYRALLRQGRQLRYTDRDFYFASIRREFRKNQKLEDAEARERQLEKGLVFLNGKLGRII",
+   "pdbs": [
+    "5OOL",
+    "5OOM",
+    "7A5H",
+    "7A5J"
+   ],
+   "pdbCount": 29,
+   "meanPlddt": 0.833,
+   "predictedRg": 12.37,
+   "expectedRg": 11.06
+  },
+  {
+   "accession": "P0A9X9",
+   "entryName": "CSPA_ECOLI",
+   "name": "Cold shock protein CspA",
+   "organism": "Escherichia coli",
+   "residueCount": 70,
+   "sequence": "MSGKMTGIVKWFNADKGFGFITPDDGSKDVFVHFSAIQNDGYKSLDEGQKVSFTIESGAKGPAAGNVTSL",
+   "pdbs": [
+    "1MJC",
+    "2BH8",
+    "2L15",
+    "3MEF"
+   ],
+   "pdbCount": 5,
+   "meanPlddt": 0.885,
+   "predictedRg": 10.69,
+   "expectedRg": 11.06
+  },
+  {
+   "accession": "P01391",
+   "entryName": "3L21_NAJKA",
+   "name": "Alpha-cobratoxin",
+   "organism": "Naja kaouthia",
+   "residueCount": 71,
+   "sequence": "IRCFITPDITSKDCPNGHVCYTKTWCDAFCSIRGKRVDLGCAATCPTVKTGVDIQCCSTDNCNPFPTRKRP",
+   "pdbs": [
+    "1CTX",
+    "1LXG",
+    "1LXH",
+    "1YI5"
+   ],
+   "pdbCount": 13,
+   "meanPlddt": 0.856,
+   "predictedRg": 12.36,
+   "expectedRg": 11.11
+  },
+  {
+   "accession": "P69222",
+   "entryName": "IF1_ECOLI",
+   "name": "Translation initiation factor IF-1",
+   "organism": "Escherichia coli",
+   "residueCount": 72,
+   "sequence": "MAKEDNIEMQGTVLETLPNTMFRVELENGHVVTAHISGKMRKNYIRILTGDKVTVELTPYDLSKGRIVFRSR",
+   "pdbs": [
+    "1AH9",
+    "1ZO1",
+    "9FCO",
+    "9FDA"
+   ],
+   "pdbCount": 8,
+   "meanPlddt": 0.868,
+   "predictedRg": 11.13,
+   "expectedRg": 11.17
+  },
+  {
+   "accession": "P38636",
+   "entryName": "ATX1_YEAST",
+   "name": "Copper chaperone ATX1",
+   "organism": "Saccharomyces cerevisiae",
+   "residueCount": 73,
+   "sequence": "MAEIKHYQFNVVMTCSGCSGAVNKVLTKLEPDVSKIDISLEKQLVDVYTTLPYDFILEKIKKTGKEVRSGKQL",
+   "pdbs": [
+    "1CC7",
+    "1CC8",
+    "1FD8",
+    "1FES"
+   ],
+   "pdbCount": 8,
+   "meanPlddt": 0.944,
+   "predictedRg": 11.05,
+   "expectedRg": 11.23
+  },
+  {
+   "accession": "Q9BZL1",
+   "entryName": "UBL5_HUMAN",
+   "name": "Ubiquitin-like protein 5",
+   "organism": "Homo sapiens",
+   "residueCount": 73,
+   "sequence": "MIEVVCNDRLGKKVRVKCNTDDTIGDLKKLIAAQTGTRWNKIVLKKWYTIFKDHVSLGDYEIHDGMNLELYYQ",
+   "pdbs": [
+    "1P0R",
+    "4PYU",
+    "6AHD",
+    "7AAV"
+   ],
+   "pdbCount": 10,
+   "meanPlddt": 0.917,
+   "predictedRg": 10.68,
+   "expectedRg": 11.23
+  },
+  {
+   "accession": "Q9UUI1",
+   "entryName": "LSM6_SCHPO",
+   "name": "LSM complex subunit lsm6",
+   "organism": "Schizosaccharomyces pombe",
+   "residueCount": 75,
+   "sequence": "MDSSPNEFLNKVIGKKVLIRLSSGVDYKGILSCLDGYMNLALERTEEYVNGKKTNVYGDAFIRGNNVLYVSALDD",
+   "pdbs": [
+    "3SWN",
+    "4EMK",
+    "6PPN",
+    "6PPP"
+   ],
+   "pdbCount": 6,
+   "meanPlddt": 0.899,
+   "predictedRg": 11.61,
+   "expectedRg": 11.35
+  },
+  {
+   "accession": "P62308",
+   "entryName": "RUXG_HUMAN",
+   "name": "Small nuclear ribonucleoprotein G",
+   "organism": "Homo sapiens",
+   "residueCount": 76,
+   "sequence": "MSKAHPPELKKFMDKKLSLKLNGGRHVQGILRGFDPFMNLVIDECVEMATSGQQNNIGMVVIRGNSIIMLEALERV",
+   "pdbs": [
+    "3CW1",
+    "3JCR",
+    "3PGW",
+    "4F7U"
+   ],
+   "pdbCount": 79,
+   "meanPlddt": 0.816,
+   "predictedRg": 12.27,
+   "expectedRg": 11.41
+  }
+ ]
+}

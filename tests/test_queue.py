@@ -42,8 +42,12 @@ def test_an_unknown_protein_is_refused_with_the_list(queue):
         queue.submit("gfp", 1, "1.2.3.4", **SUBMIT)
     message = str(caught.value)
     assert "gfp" in message
-    # An honest message names what IS available rather than only what is not.
+    # An honest message names what IS available rather than only what is not. The gallery
+    # is listed; the ESMFold catalogue is two dozen accessions, so it is named by count and
+    # by the route that returns it rather than dumped into an error string.
     assert "trp_cage" in message and "ubiquitin" in message
+    if any(i.startswith("uniprot:") for i in jobs.whitelisted()):
+        assert "/api/uniprot" in message
 
 
 def test_an_oversized_protein_is_refused_with_the_measured_reason(monkeypatch, queue):

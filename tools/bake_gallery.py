@@ -220,15 +220,22 @@ def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
     total_contacts = sum(len(c) for c in per_frame_contacts)
     first_fraction = (len(per_frame_contacts[0]) / total_contacts) if total_contacts else 1.0
 
+    # `record["id"]`, not `protein_id`. This function was split out of `bake` so the queue
+    # worker could reuse it, assertions included, and the assertions kept referring to a
+    # name that only existed in the caller. So the one path designed to fail loudly with a
+    # diagnosis raised `NameError: name 'protein_id' is not defined` instead, which says
+    # nothing at all about the trajectory - and it only ever fired for a queued fold, which
+    # is exactly where nobody was watching a console. Found when Cro tripped a bake gate.
+    subject = record.get("id", "this trajectory")
     if ratio > MAX_COLLAPSE_RATIO:
         raise BakeError(
-            f"{protein_id}: Rg went {rg_start:.1f} -> {rg_end:.1f} A, a ratio of "
+            f"{subject}: Rg went {rg_start:.1f} -> {rg_end:.1f} A, a ratio of "
             f"{ratio:.2f}, above the {MAX_COLLAPSE_RATIO} bar. This trajectory does not "
             f"collapse, so there is no animation in it. Do not relax the bar; find out why "
             f"it did not fold.")
     if first_fraction >= MAX_FIRST_FRAME_CONTACT_FRACTION:
         raise BakeError(
-            f"{protein_id}: {len(per_frame_contacts[0])} of {total_contacts} contacts "
+            f"{subject}: {len(per_frame_contacts[0])} of {total_contacts} contacts "
             f"({first_fraction:.0%}) form on frame 1, at or above the "
             f"{MAX_FIRST_FRAME_CONTACT_FRACTION:.0%} bar. This trajectory starts folded. "
             f"That is exactly the bake PhoneFold threw away.")

@@ -45,11 +45,22 @@ const ENGINE_BADGE = {
   go: 'Gō model · toward a known structure',
   generative: 'Genie 2 · invented from noise',
 };
+/* Keyed on the artefact's own `provenance`, because "toward a known structure" and "toward a
+ * structure something predicted" are two different claims and only the artefact knows which
+ * one it is. A fold toward a crystal structure cannot be wrong about where it is going; a
+ * fold toward a prediction can. */
+const PROVENANCE_BADGE = {
+  'esmfold-prediction-go': 'ESMFold → Gō model · toward a predicted structure',
+};
 const WHERE_BADGE = {
   baked: 'precomputed',
   live: 'in your browser',
   queued: 'on the server',
 };
+/* The prediction does not happen on our server and the badge must not imply it does.
+ * ESMFold v1 is an 8.44 GB checkpoint and the droplet has 3.9 GB with no swap, so it runs at
+ * Meta's ESM Atlas and only the Gō model runs here. */
+const PREDICTED_WHERE = 'predicted at Meta, folded here';
 
 /* The badge reads as one sentence: engine, then where, then what is happening. So the status
  * has to agree with the place beside it. It used to be a separate paragraph under the
@@ -89,13 +100,65 @@ class Player {
   }
 
   async boot() {
-    const [THREE] = await Promise.all([import(THREE_URL), this._loadStyles()]);
+    const [THREE] = await Promise.all([
+      import(THREE_URL), this._loadStyles(), this._loadUniprot()]);
     this.stage = new Stage($('stage'), THREE);
     this._wireControls();
     this._applyLiveSupport();
     const first = document.querySelector('.card');
     await this.load(first?.dataset.foldId ?? 'trp_cage');
     requestAnimationFrame(t => this._loop(t));
+  }
+
+  /* The ESMFold catalogue, into the pulldown.
+   *
+   * Fetched once at boot rather than when the engine is picked: it is a couple of kilobytes
+   * and a pulldown that populates on click is a pulldown that is briefly empty. If the
+   * route fails the control says so and disables itself, because an empty select beside an
+   * enabled engine button is the worst of both.
+   */
+  async _loadUniprot() {
+    const select = $('uniprot-pick');
+    try {
+      const response = await fetch('/api/uniprot');
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json();
+      this.uniprot = body.entries ?? [];
+      if (!this.uniprot.length) throw new Error('the catalogue is empty');
+      select.innerHTML = '';
+      for (const entry of this.uniprot) {
+        const option = document.createElement('option');
+        option.value = entry.id;
+        option.textContent = `${entry.name} · ${entry.residueCount} aa · ${entry.organism}`;
+        select.appendChild(option);
+      }
+      this._pickUniprot(this.uniprot[0].id);
+      select.addEventListener('change', () => this._pickUniprot(select.value));
+    } catch (err) {
+      select.disabled = true;
+      $('uniprot-note').textContent = `the catalogue could not be loaded: ${err.message}`;
+      const button = document.querySelector('#engine-mode button[data-source="queued"]');
+      if (button) { button.disabled = true; button.title = 'The UniProt catalogue is unavailable'; }
+    }
+  }
+
+  /* The row is above the stage, so showing it takes height from the stage rather than from
+   * the page: without that the readouts went 42 px below the fold the moment this appeared. */
+  _showUniprot(visible) {
+    $('uniprot-row').hidden = !visible;
+    document.body.classList.toggle('picking-uniprot', visible);
+  }
+
+  _pickUniprot(id) {
+    const entry = this.uniprot?.find(e => e.id === id);
+    if (!entry) return;
+    this.uniprotId = id;
+    $('uniprot-pick').value = id;
+    // ESMFold's own confidence in the structure the Gō model will fold toward, stated where
+    // the choice is made. It is the one number that says how much to trust the target.
+    $('uniprot-note').textContent =
+      `${entry.accession} · ESMFold pLDDT ${entry.meanPlddt.toFixed(2)}`
+      + (entry.pdbs?.length ? ` · PDB ${entry.pdbs[0]}` : '');
   }
 
   async _loadStyles() {
@@ -240,7 +303,11 @@ class Player {
     const response = await fetch('/api/queue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ protein_id: this.fold.id, seed: this.queueSeed }),
+      // The UniProt pick when the ESMFold engine is chosen, and the loaded gallery protein
+      // otherwise. Both go through one route and one queue: the only difference is where
+      // the native state the model folds toward came from.
+      body: JSON.stringify({ protein_id: this.uniprotId ?? this.fold.id,
+                             seed: this.queueSeed }),
     });
     const body = await response.json().catch(() => ({}));
 
@@ -343,8 +410,14 @@ class Player {
    * structure and per-residue confidence are computed here, on this thread: 76 residues is
    * a millisecond or so a frame and there are a few frames per tick. */
   async _openQueuedStream(status) {
-    const response = await fetch(`/api/native/${encodeURIComponent(this.fold.id)}`);
-    if (!response.ok) throw new Error(`native ${this.fold.id}: HTTP ${response.status}`);
+    // A predicted native is not on disk here - it lives at Meta and then in the server's
+    // own cache - so the stream asks the job for it rather than the gallery. Same shape,
+    // same contact map, same builder.
+    const source = status.protein_id?.startsWith('uniprot:')
+      ? `/api/queue/${encodeURIComponent(status.job_id)}/native`
+      : `/api/native/${encodeURIComponent(this.fold.id)}`;
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`native: HTTP ${response.status}`);
     const native = await response.json();
     const flat = Float64Array.from(native.ca.flat());
     const n = flat.length / 3;
@@ -581,8 +654,12 @@ class Player {
   }
 
   _updateBadge() {
-    $('badge-engine').textContent = ENGINE_BADGE[this.engine] ?? ENGINE_BADGE.go;
-    $('badge-where').textContent = WHERE_BADGE[this.source] ?? WHERE_BADGE.baked;
+    const provenance = this.fold?.provenance;
+    $('badge-engine').textContent =
+      PROVENANCE_BADGE[provenance] ?? ENGINE_BADGE[this.engine] ?? ENGINE_BADGE.go;
+    $('badge-where').textContent = provenance === 'esmfold-prediction-go'
+      ? PREDICTED_WHERE
+      : (WHERE_BADGE[this.source] ?? WHERE_BADGE.baked);
   }
 
   /** Say what is happening, in the badge, beside what is producing it.
@@ -824,10 +901,13 @@ class Player {
       button.addEventListener('click', () => {
         if (button.disabled) return;
         if (button.dataset.source === 'live') {
+          this._showUniprot(false);
           this.foldLive().catch(err => this._status(`could not start: ${err.message}`));
         } else if (button.dataset.source === 'queued') {
+          this._showUniprot(true);
           this.foldQueued().catch(err => this._status(`could not reach the server: ${err.message}`));
         } else if (button.dataset.source === 'baked') {
+          this._showUniprot(false);
           this.worker?.postMessage({ type: 'cancel' });
           clearInterval(this._queueTimer);
           this.load(this.fold.id);
