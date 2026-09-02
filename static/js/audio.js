@@ -93,13 +93,40 @@ export class FoldAudio {
   }
 
   /** Must be called from inside a user gesture. */
+  /**
+   * A context to play through, built fresh for each run rather than kept.
+   *
+   * **A Safari AudioContext can go silent and keep saying it has not.** Measured on Marc's
+   * machine, 2026-09-02: a context that had been alive about two minutes and had already
+   * played the piece through to the end produced nothing at all - not the music, and not a
+   * bare oscillator wired straight to `destination` - while reporting state "running" with
+   * its clock advancing correctly at 48 kHz, 75 of 75 moments scheduled and not one note
+   * refused. A context created seconds later in the same tab played perfectly. There is no
+   * flag, no event and no exception: every measurement the page can take says it is fine.
+   *
+   * Since it cannot be detected it is avoided. Starting from stopped builds a new context
+   * and closes the old one; a pause and a resume keep theirs, so pausing mid-piece does not
+   * rebuild anything. The cost is the graph, and the expensive part of that is the reverb's
+   * impulse response, measured at 32 ms - once, on a click, and worth it against a piece
+   * that plays into silence and looks healthy doing it.
+   *
+   * The new context is created BEFORE the old one is closed and the close is not awaited:
+   * `close()` returns a promise, and awaiting it here would put the construction outside
+   * the click that Safari requires it to happen inside.
+   */
   async start() {
-    if (!this.context) {
+    const stale = this.context && !this.playing ? this.context : null;
+    if (stale || !this.context) {
       const Ctor = window.AudioContext ?? window.webkitAudioContext;
       if (!Ctor) throw new Error('this browser has no Web Audio');
       this.context = new Ctor();
+      // A PeriodicWave belongs to the context that made it, and handing one to an
+      // oscillator from a different context throws. Clearing this is not tidiness.
+      this.waveCache.clear();
       this._buildGraph();
+      this.contextsBuilt = (this.contextsBuilt ?? 0) + 1;
     }
+    if (stale) stale.close().catch(() => { /* already gone; nothing to do about it */ });
     if (this.context.state === 'suspended') await this.context.resume();
     return this.context.state === 'running';
   }

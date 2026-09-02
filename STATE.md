@@ -326,6 +326,21 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       were scaled by the ruler when the cartoon is swept in quantised units, so they landed
       in a knot at the origin. The fourth was mine twice over - a backtick in a comment
       inside a JS template literal, which is documented in another test in this repo.
+- [!] **A Safari AudioContext can go silent and keep saying it has not.** Measured on Marc's
+      Mac, 2026-09-02: a context about two minutes old, which had already played the piece
+      through to its end, produced nothing at all - not the music, and not a bare oscillator
+      wired straight to `destination` - while reporting state "running", advancing its clock
+      correctly at 48 kHz, with 75 of 75 moments scheduled and not one note refused. A
+      context built seconds later in the same tab played perfectly. There is no flag, no
+      event and no exception: every measurement the page can take says it is fine, which is
+      why it took a bare tone straight to the destination to find. The app builds a fresh
+      context per run now and closes the old one. Two things that would have shortened this:
+      the scheduler was unguarded inside a setInterval, so a refused note would have been
+      invisible in the same way; and the diagnosis it does have never ran in the
+      silent-playback branch, which is exactly where a browser that refuses the audio ends
+      up. Both fixed. `outputLatency` may be a detector - a fresh unresumed context reads 0
+      and a working one read 0.0158 - but the dead one was gone before it could be measured,
+      so that is a guess and is not built on.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [x] **Genie 2 gallery entries**, three of them: an all-alpha 64-mer, a mixed alpha/beta
       72-mer and an 80-residue helical bundle, each a backbone that has never existed. Baked

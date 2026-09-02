@@ -183,7 +183,7 @@ matter here are the ones where every unit test passes and the page does nothing.
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
 | pytest, 84 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
-| `node --test`, 53 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
+| `node --test`, 62 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |
 | sound | The score reaches a **running** `AudioContext` from a real click, the animation follows the audio clock, and the notes sounding mid-playback are drawn as chords on the structure and lit cells on the ribbon |

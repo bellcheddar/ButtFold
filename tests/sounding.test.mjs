@@ -217,3 +217,69 @@ test('a clock that runs while nothing is queued says so', () => {
   audio._clockSeenAt = 0;
   assert.match(audio.diagnose(), /no notes are reaching it/);
 });
+
+/* ------------------------------------------------------------------ the context --------
+ *
+ * Safari can leave a context reporting "running", with a correct clock and every note
+ * accepted, that produces no sound at all - measured, on a context about two minutes old
+ * that had already played its piece through. Nothing distinguishes it from a working one,
+ * so the app stops reusing them. These pin the rule, because it is invisible in use: a
+ * regression here sounds exactly like nothing for a while and then works again on reload.
+ */
+function fakeCtorInto(audio) {
+  const made = [];
+  const ctx = () => {
+    const c = {
+      state: 'suspended', sampleRate: 48000, currentTime: 0, closed: false,
+      resume() { this.state = 'running'; return Promise.resolve(); },
+      close() { this.closed = true; return Promise.resolve(); },
+      destination: { channelCount: 2 },
+      listener: {},
+      createGain: () => ({ gain: { value: 0 }, connect: (n) => n }),
+      createBiquadFilter: () => ({ type: '', frequency: { value: 0 }, Q: { value: 0 },
+                                   connect: (n) => n }),
+      createConvolver: () => ({ buffer: null, connect: (n) => n }),
+      createBuffer: (ch, len) => ({ getChannelData: () => new Float32Array(len) }),
+    };
+    made.push(c);
+    return c;
+  };
+  globalThis.window = { AudioContext: function () { return ctx(); } };
+  audio.waveCache = new Map();
+  return made;
+}
+
+test('starting from stopped builds a new context and closes the old one', async () => {
+  const audio = new FoldAudio();
+  const made = fakeCtorInto(audio);
+
+  await audio.start();
+  assert.equal(made.length, 1, 'the first run did not build a context');
+  const first = made[0];
+
+  // Stopped, then played again: a new one, and the old one closed.
+  audio.playing = false;
+  await audio.start();
+  assert.equal(made.length, 2, 'a second run reused a context that may have gone silent');
+  assert.ok(first.closed, 'the old context was left open; Safari caps how many may exist');
+
+  // Mid-piece, a pause and a resume must NOT rebuild: that would cost the graph on every
+  // press and drop the reverb tail.
+  audio.playing = true;
+  await audio.start();
+  assert.equal(made.length, 2, 'a resume rebuilt the context');
+  delete globalThis.window;
+});
+
+test('the periodic wave cache is cleared with the context that made the waves', async () => {
+  const audio = new FoldAudio();
+  fakeCtorInto(audio);
+  await audio.start();
+  audio.waveCache.set('sine:1,2', { fromTheOldContext: true });
+  audio.playing = false;
+  await audio.start();
+  // A PeriodicWave belongs to its context, and handing one to an oscillator from another
+  // throws. Keeping the cache across a rebuild would silence every voice that uses one.
+  assert.equal(audio.waveCache.size, 0);
+  delete globalThis.window;
+});
