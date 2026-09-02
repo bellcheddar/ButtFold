@@ -259,8 +259,20 @@ body.picking-uniprot { --bf-page-chrome: 302px; }
 
 /* The persistent engine badge. Small, in a corner, always visible while anything plays,
    and it never scrolls away while the animation runs. PLAN section 7. */
+/* Full width along the stage's lower edge, under everything else in it. `pointer-events:
+   none` because a drag that starts here has to reach the canvas behind it: the whole bottom
+   strip of the viewer would otherwise be dead to the orbit. */
+/* `.stage-wrap canvas` sizes three.js's canvas to fill the stage, and it matches THIS
+   canvas too - at one class and one element it also outranks a bare `.residue-ribbon`, so
+   the strip silently took the whole viewer. Scoped to the same weight to win it back rather
+   than reaching for !important, and left specific about which canvas each rule means. */
+.stage-wrap canvas.residue-ribbon {
+  position: absolute; z-index: 1; left: 0; right: 0; bottom: 0;
+  width: 100%; height: 34px; display: block; pointer-events: none;
+}
+
 .stage-badge {
-  position: absolute; left: 12px; bottom: 12px;
+  position: absolute; left: 12px; bottom: 42px;
   background: rgba(5, 4, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--bf-radius-pill);

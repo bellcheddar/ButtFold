@@ -93,6 +93,16 @@ export function hydrophobicityColour(hydropathy) {
                  : mixHex(0x6b7c93, 0xfcb900, (t - 0.5) * 2);
 }
 
+/* The most chords drawn at once. A bar can sound sixteen contacts and the tail keeps a few
+ * bars visible, so the ceiling is what stops a busy fold becoming a scribble; past this the
+ * oldest are simply not drawn, which is what the decay would have done to them a moment
+ * later anyway. */
+const MAX_CHORDS = 48;
+/* The two colours the app has already given these meanings: green is contacts on the
+ * radius chart, amber is compaction. Core contacts sound in the bass voice. */
+const CHORD_CONTACT = 0x3DDC97;
+const CHORD_CORE = 0xFCB900;
+
 export class Stage {
   constructor(container, THREE) {
     this.THREE = THREE;
@@ -128,6 +138,7 @@ export class Stage {
 
     this.group = new THREE.Group();
     this.scene.add(this.group);
+    this._buildChords();
 
     this._installDrag();
     this._installResize();
@@ -199,6 +210,10 @@ export class Stage {
     const n = positions.length / 3;
     this.setResidueCount(n);
     if (!this.mesh) return;
+    // Kept so the chords can be struck between two residues without the player having to
+    // hand the same coordinates over twice. It is the pose currently DRAWN, morph included,
+    // so a chord lands on the ribbon exactly where the ribbon is.
+    this.points = positions;
 
     // No P-SEA certainty (an older artefact, or a source that does not carry it): fall back
     // to full confidence wherever a structure is assigned, so the ribbon is drawn at its
@@ -209,6 +224,9 @@ export class Stage {
     const written = buildCartoon(positions, ss, certainty, this.profile,
                                  this.buffers, this.tables);
     if (!written) return;
+
+    // Restruck against the pose just swept, so the chords cannot lag the structure.
+    this._updateChords();
 
     const geometry = this.mesh.geometry;
     geometry.attributes.position.needsUpdate = true;
@@ -256,6 +274,8 @@ export class Stage {
     // Two colours per structure code is all the ramp needs, so the conversion is hoisted
     // out of the per-vertex loop: at 20 segments and 10 samples a residue this runs about
     // 160,000 times a frame on ubiquitin, and `Color.setHex` is not free.
+    const glow = this.glow && this.glow.length === n ? this.glow : null;
+
     const cache = new Map();
     const rgbOf = (hex) => {
       let rgb = cache.get(hex);
@@ -279,11 +299,137 @@ export class Stage {
         hex = byCode[this.buffers.structure[v]] ?? palette.C;
       }
       const rgb = rgbOf(hex);
-      array[3 * v] = rgb[0];
-      array[3 * v + 1] = rgb[1];
-      array[3 * v + 2] = rgb[2];
+      // A residue that is sounding is lifted toward white, in every colour mode, so the
+      // chord's two ends are visible on the ribbon as well as between it. Lifting toward
+      // white rather than recolouring keeps the mode's own meaning: a confident residue that
+      // sounds is a bright version of its confidence colour, not a different colour.
+      const lift = glow ? (glow[residue] ?? 0) * 0.75 : 0;
+      array[3 * v] = rgb[0] + (1 - rgb[0]) * lift;
+      array[3 * v + 1] = rgb[1] + (1 - rgb[1]) * lift;
+      array[3 * v + 2] = rgb[2] + (1 - rgb[2]) * lift;
     }
     colours.needsUpdate = true;
+  }
+
+  /* ------------------------------------------------------------------ the music ---------
+   *
+   * A contact note in ButtFold is an event between two residues - the score stores both -
+   * and both of them are already on this stage. So when a note sounds, a line is struck
+   * between them. Nothing about the music is invented here: the line's brightness is the
+   * note's own velocity, decaying over the tail the player asks for.
+   *
+   * ADDITIVE blending, and the fade is done in the colour rather than in an alpha. A
+   * `LineBasicMaterial` has one opacity for the whole object, so per-line fading has to be
+   * carried by the vertex colours; against a stage this dark, scaling a colour toward black
+   * IS a fade, and additive blending makes overlapping chords brighten rather than fight
+   * over a depth test.
+   */
+  _buildChords() {
+    const THREE = this.THREE;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position',
+      new THREE.BufferAttribute(new Float32Array(MAX_CHORDS * 6), 3));
+    geometry.setAttribute('color',
+      new THREE.BufferAttribute(new Float32Array(MAX_CHORDS * 6), 3));
+    geometry.setDrawRange(0, 0);
+    this.chords = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    this.chords.frustumCulled = false;      // the same NaN-bounding-sphere trap as the mesh
+    this.group.add(this.chords);
+    this.chordColour = new THREE.Color();
+    // How brightly each residue is currently sounding, added to its ribbon colour so the
+    // two ends of a chord light up on the structure as well as between it.
+    this.glow = new Float32Array(0);
+  }
+
+  /**
+   * The notes sounding right now, from `audio.notesSounding`.
+   *
+   * Called every frame while playing and once with nothing when playback stops, so the
+   * decay is the caller's `age` rather than a timer here: scrubbing backwards has to show
+   * the chords of the place scrubbed to, not the ones on their way out.
+   */
+  setSounding(events) {
+    if (!this.chords) return;
+    this.sounding = events ?? [];
+    if (this.glow.length !== this.residueCount) this.glow = new Float32Array(this.residueCount);
+    else this.glow.fill(0);
+    for (const event of this.sounding) {
+      const envelope = Math.max(1 - event.age, 0) ** 1.8 * event.velocity;
+      if (envelope <= 0.02) continue;
+      if (event.residue >= 0 && event.residue < this.glow.length) {
+        this.glow[event.residue] = Math.max(this.glow[event.residue], envelope);
+      }
+      if (event.partner != null && event.partner >= 0 && event.partner < this.glow.length) {
+        this.glow[event.partner] = Math.max(this.glow[event.partner], envelope * 0.8);
+      }
+    }
+    this._updateChords();
+  }
+
+  /**
+   * The chord geometry, from the pose currently drawn.
+   *
+   * Separate from `setSounding` and called again by `render`, so a chord is always struck
+   * between two residues where those residues ARE. Building the positions inside
+   * `setSounding` meant they came from whatever had been rendered last, which is one frame
+   * behind in the loop and can be an entirely different frame anywhere else - a chord drawn
+   * across the starting coil while the stage shows the folded structure, reaching twice as
+   * far as the protein is wide.
+   */
+  _updateChords() {
+    if (!this.chords || !this.points) return;
+    const position = this.chords.geometry.attributes.position.array;
+    const colour = this.chords.geometry.attributes.color.array;
+    const residues = this.points.length / 3;
+    let drawn = 0;
+    for (const event of this.sounding ?? []) {
+      const envelope = Math.max(1 - event.age, 0) ** 1.8 * event.velocity;
+      if (envelope <= 0.02 || event.partner == null || drawn >= MAX_CHORDS) continue;
+      // Both ends checked against the pose actually held, not against the residue count the
+      // score was written for. A score outliving its fold by one frame would otherwise read
+      // past the end of the array and write NaN into the buffer, which does not throw: it
+      // draws a line to nowhere.
+      if (event.residue < 0 || event.residue >= residues
+          || event.partner < 0 || event.partner >= residues) continue;
+      // The QUANTISED units the frame carries, unconverted. The cartoon is swept in those
+      // units too - it is the profile that is divided by the ruler, not the coordinates -
+      // so a chord scaled into Angstroms lands about twenty-five times too small, in a
+      // knot at the origin, hidden inside the structure it is supposed to cross.
+      const a = 3 * event.residue, b = 3 * event.partner;
+      const o = drawn * 6;
+      position[o] = this.points[a];
+      position[o + 1] = this.points[a + 1];
+      position[o + 2] = this.points[a + 2];
+      position[o + 3] = this.points[b];
+      position[o + 4] = this.points[b + 1];
+      position[o + 5] = this.points[b + 2];
+      // Bass is the core contact voice, and it gets the colour compaction already owns on
+      // the charts; every other contact is the green the contacts trace already owns.
+      this.chordColour.setHex(event.voice === 'bass' ? CHORD_CORE : CHORD_CONTACT);
+      // WebGL draws every line one pixel wide whatever `linewidth` says, on every platform
+      // that matters, so brightness is the only weight a chord has. 1.6x with a ceiling
+      // keeps a fresh strike at full colour and still lets the tail fall away.
+      const lit = Math.min(envelope * 1.6, 1);
+      for (let k = 0; k < 2; k++) {
+        colour[o + k * 3] = this.chordColour.r * lit;
+        colour[o + k * 3 + 1] = this.chordColour.g * lit;
+        colour[o + k * 3 + 2] = this.chordColour.b * lit;
+      }
+      drawn++;
+    }
+    this.chords.geometry.setDrawRange(0, drawn * 2);
+    this.chords.geometry.attributes.position.needsUpdate = true;
+    this.chords.geometry.attributes.color.needsUpdate = true;
+    this.chordsDrawn = drawn;
+  }
+
+  clearSounding() {
+    this.sounding = [];
+    if (this.glow) this.glow.fill(0);
+    if (this.chords) { this.chords.geometry.setDrawRange(0, 0); this.chordsDrawn = 0; }
   }
 
   setColourMode(mode) { this.colourMode = mode; }

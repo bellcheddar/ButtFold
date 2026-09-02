@@ -90,6 +90,23 @@ and would otherwise play the whole piece flat out. And it is baked rather than s
 because 1000 denoising steps is 2.2 minutes on a Mac and 10.2 on the droplet, with no
 speed-up from more cores.
 
+**The music is drawn on the structure.** A contact note is an event between two residues —
+the score stores both — and both are already on the stage, so when the note sounds a line is
+struck between them: green for a contact, amber for a core contact in the bass voice, fading
+at the note's own velocity. Its two residues brighten on the ribbon at the same moment. Under
+it, the chain unrolled into a strip, one cell per residue in the cartoon's own colours,
+lighting from **all five voices** — the pad picks helix residues, the rhythm picks sheet ones,
+so the strip carries the whole texture rather than the contacts alone. At rest that strip is a
+sequence view of the secondary structure, re-forming as the fold does.
+
+Both read the same list, and they get it by **asking the audio clock what is sounding** rather
+than being told by the scheduler. The scheduler queues a second ahead, so a visual driven from
+it would run ahead of its own music, and it queues nothing while paused, so scrubbing would
+show an empty stage. A query cannot drift, because it *is* the clock the animation already
+follows. A note is drawn for the longer of its own length and a 0.9 s floor: a contact is a
+semiquaver and would otherwise be a single frame, and a pad chord is held for a whole bar and
+would otherwise go dark while you could still hear it.
+
 **Both computed paths are watched as they happen**, which for the server means the browser reads
 the coordinate file the droplet is still writing to. Progress there was a percentage over a still
 picture: the droplet folded for half a minute while a number climbed, and the same protein folding
@@ -166,10 +183,10 @@ matter here are the ones where every unit test passes and the page does nothing.
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
 | pytest, 84 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
-| `node --test`, 44 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
+| `node --test`, 53 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |
-| sound | The score reaches a **running** `AudioContext` from a real click, and the animation follows the audio clock |
+| sound | The score reaches a **running** `AudioContext` from a real click, the animation follows the audio clock, and the notes sounding mid-playback are drawn as chords on the structure and lit cells on the ribbon |
 | live fold, and the queue | A browser folds trp-cage to Q >= 0.95, and the droplet returns a fold and then serves it from cache. Both must be seen mid-fold: at least three distinct frame counts while the status still reads "folding", with the charts carrying a point per frame |
 
 The animation between frames is a morph and the page says so. The 150 poses in a trajectory

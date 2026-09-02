@@ -19,12 +19,23 @@ import { LiveScale, buildFrame, centre, maxAbs, newTrajectoryState, roundHalfToE
 import { nativeContacts, perResidueNativeFraction } from './native_contacts.js';
 // The in-between poses, which the model never computed and the page says so.
 import { morphFrames, newMorphScratch } from './morph.js';
+// The two ways the score is drawn: chords struck across the structure between the residues
+// that made each note, and the chain unrolled into a strip that lights as they sound.
+import { ResidueRibbon } from './ribbon.js';
 import { score, compaction } from './Sonifier.js';
 import { FoldAudio } from './audio.js';
 
 const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
 
 const $ = id => document.getElementById(id);
+
+/* How long a note goes on being drawn after it strikes.
+ *
+ * A visual decay, not the note's own length: a contact is a semiquaver, which at 96 BPM is
+ * 60 ms of audio and would be a single frame on screen - a flicker rather than a strike.
+ * 0.9 s is long enough to read and short enough that a sixteen-contact flurry has cleared
+ * before the next bar's does, so a busy fold reads as a run of strokes rather than a mesh. */
+const SOUNDING_TAIL_SECONDS = 0.9;
 
 /** The chart series, empty. One definition because five places reset them, and a sixth that
  *  forgot a key would draw a chart of `undefined` rather than fail. */
@@ -109,6 +120,7 @@ class Player {
     const [THREE] = await Promise.all([
       import(THREE_URL), this._loadStyles(), this._loadUniprot()]);
     this.stage = new Stage($('stage'), THREE);
+    this.ribbon = new ResidueRibbon($('residue-ribbon'));
     this._wireControls();
     this._applyLiveSupport();
     const first = document.querySelector('.card');
@@ -711,6 +723,13 @@ class Player {
       this.stage.render(frame.points, frame.ss, frame.confidence, frame.ssConfidence);
     }
     this.rendered = clamped;
+    // The strip is a sequence view of the structure as well as a note display, so it
+    // follows the frame whether or not anything is playing: at rest it re-forms as the fold
+    // does, which is why it is drawn on a paused page rather than being blank until Play.
+    if (this.ribbon) {
+      this.ribbon.setStructure(frame.ss);
+      this.ribbon.draw();
+    }
 
     if (index !== this.index || !this._readoutsDrawn) {
       this.index = index;
@@ -831,9 +850,26 @@ class Player {
       // second, and holding each pose for fifteen redraws is exactly what looked like
       // jumping. The clock is still the audio's, so a machine that cannot sweep at 60 Hz
       // draws fewer poses and stays in time rather than sliding out of it.
-      const position = this.audio.frameAtFractional(this.audio.positionSeconds);
-      if (position !== this.rendered) this._showAt(position);
-      else this.stage.redraw();
+      // **Asked of the audio clock, not pushed by the scheduler.** The scheduler queues a
+      // second ahead, so a visual driven from it would run ahead of its own music; asking
+      // what is sounding NOW cannot drift, because it is the same clock the frame comes
+      // from. Both drawings take the same event list, so a chord and its two lit cells are
+      // by construction the same note.
+      const heard = this.audio.notesSounding(this.audio.positionSeconds,
+                                             SOUNDING_TAIL_SECONDS);
+      this.stage.setSounding(heard);
+      this.ribbon?.setSounding(heard);
+
+      // Drawn every frame while playing, rather than only when the trajectory position
+      // moves: the chords and the lit cells change on every one of them even when the
+      // structure has not, and since interpolation landed the position changes on nearly
+      // every frame anyway, so the old skip was saving almost nothing.
+      //
+      // `setSounding` above ran against the pose drawn LAST frame, so a chord's endpoints
+      // trail the structure by one frame - about sixteen milliseconds, over which an alpha
+      // carbon moves well under an Angstrom. Setting the glow before the sweep is what lets
+      // the sweep paint it in one pass instead of painting the mesh twice.
+      this._showAt(this.audio.frameAtFractional(this.audio.positionSeconds));
       if (this.audio.positionSeconds >= (this.audio.durationSeconds ?? 0)) {
         this.playing = false;
         $('play').textContent = 'Play';
@@ -853,6 +889,13 @@ class Player {
       this._showAt(this.silentPosition);
     } else if (this.frames.length) {
       // The camera moved, not the protein: draw the scene again without re-sweeping it.
+      // The chords are cleared once on the way into this state rather than every frame,
+      // because a paused page should hold its structure and not its last chord.
+      if (this.stage.chordsDrawn) {
+        this.stage.clearSounding();
+        this.ribbon?.setSounding([]);
+        this._showAt(this.rendered);
+      }
       this.stage.redraw();
     }
     requestAnimationFrame(t => this._loop(t));

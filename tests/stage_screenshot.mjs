@@ -136,7 +136,14 @@ writeFileSync(outPng, png);
 // Non-uniformity, measured on the stage element alone rather than the whole page: the page
 // has text and cards on it and would score as varied even with a dead canvas.
 const uniformity = await evaluate(`(() => {
-  const canvas = document.querySelector('#stage canvas');
+  // Excluding the ribbon: the stage holds two canvases now - three.js's, and the residue
+  // ribbon drawn over it in 2D. A bare selector picks whichever comes first, and asking a
+  // 2D canvas for a WebGL context returns null rather than throwing, so this failed as
+  // "Cannot read properties of null" a long way from the selector that caused it.
+  //
+  // And no backticks in this comment: it sits inside a JS template literal, where one would
+  // end the literal. That is the second time in this session.
+  const canvas = document.querySelector('#stage canvas:not(.residue-ribbon)');
   if (!canvas) return { error: 'no canvas in #stage' };
   // Force a render and read the buffer in the SAME task. WebGL clears its drawing buffer
   // after compositing unless preserveDrawingBuffer is set, so a readPixels done later
@@ -170,7 +177,7 @@ const uniformity = await evaluate(`(() => {
 // uniform colour looks implemented from every angle except this one.
 const modes = await evaluate(`(async () => {
   const out = {};
-  const canvas = document.querySelector('#stage canvas');
+  const canvas = document.querySelector('#stage canvas:not(.residue-ribbon)');
   const player = window.buttfoldPlayer;
   for (const mode of ['structure', 'colourblind', 'confidence', 'rainbow', 'phobic']) {
     document.querySelector('#colour-mode button[data-mode="' + mode + '"]').click();

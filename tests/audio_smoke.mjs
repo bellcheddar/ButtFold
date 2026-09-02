@@ -111,6 +111,7 @@ const before = await evaluate(`(() => {
     fold: p.fold.id,
     style: p.styleId,
     moments: p.scored.moments.length,
+    residueCount: p.residueCount,
     notes: p.scored.moments.reduce((s, m) => s + m.notes.length, 0),
     durationSeconds: p.audio.durationSeconds,
     timeline: p.audio.timeline.length,
@@ -136,6 +137,14 @@ const during = await evaluate(`(() => {
     frame: p.index,
     playLabel: document.getElementById('play').textContent,
     note: document.getElementById('audio-note').textContent,
+    // The two drawings of the score. Sampled DURING playback, from the same event list the
+    // sound is coming from, because that is the only thing that proves they are following
+    // the audio clock rather than a frame counter of their own.
+    sounding: p.audio.notesSounding(p.audio.positionSeconds, 0.9).length,
+    chordsDrawn: p.stage.chordsDrawn,
+    litResidues: p.stage.glow ? [...p.stage.glow].filter(v => v > 0.02).length : 0,
+    ribbonLit: p.ribbon ? [...p.ribbon.glow].filter(v => v > 0.02).length : 0,
+    ribbonCells: p.ribbon ? p.ribbon.residueCount : 0,
   };
 })()`);
 
@@ -183,6 +192,8 @@ console.log(`summary line  "${before.summary}"`);
 console.log(`context       ${during.contextState}, clock at ${during.currentTime.toFixed(2)} s`);
 console.log(`after 2.5 s   position ${during.position.toFixed(2)} s, frame ${during.frame}, `
             + `${during.scheduledMoments} moments scheduled`);
+console.log(`drawn         ${during.sounding} notes sounding, ${during.chordsDrawn} chords, `
+            + `${during.litResidues} residues lit, ribbon ${during.ribbonLit}/${during.ribbonCells}`);
 console.log(`style switch  ${before.style} -> ${afterStyle.style}, `
             + `position ${afterStyle.position.toFixed(2)} s, ${afterStyle.notes.toLocaleString()} notes`);
 if (logs.length) logs.forEach(l => console.log(`  [page] ${l}`));
@@ -211,6 +222,27 @@ if (clockWorks) {
   }
 }
 if (during.playLabel !== 'Pause') failures.push(`the button says "${during.playLabel}"`);
+// The score drawn, not just heard. These only mean anything while the clock is moving, so
+// they sit behind the same probe as the other timing assertions.
+if (clockWorks) {
+  if (!(during.sounding > 0)) {
+    failures.push('nothing was sounding mid-playback, so neither drawing had anything to do');
+  }
+  if (!(during.chordsDrawn > 0)) {
+    failures.push(`${during.sounding} notes were sounding and no chords were struck between `
+                  + 'their residues');
+  }
+  if (!(during.litResidues > 0)) {
+    failures.push('no residue was lit on the structure while notes were sounding');
+  }
+  if (during.ribbonCells !== before.residueCount) {
+    failures.push(`the ribbon has ${during.ribbonCells} cells for a `
+                  + `${before.residueCount} residue protein`);
+  }
+  if (!(during.ribbonLit > 0)) {
+    failures.push('the residue ribbon lit nothing while notes were sounding');
+  }
+}
 if (during.note) failures.push(`the page reported an audio problem: ${during.note}`);
 if (afterStyle.style !== 'jazz') failures.push('the style pill did not switch');
 if (clockWorks && !(afterStyle.position >= during.position)) {

@@ -314,6 +314,18 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       and pushed the readouts below the fold in every mode. And the coil seed used Python's
       `hash()`, which is randomised per process, so the same protein would have started from
       a different chain after every worker restart while the cache key said otherwise.
+- [x] **The score is drawn**, concepts 01 and 03 from the Seeing the Score pitch. Contact
+      chords struck across the structure between the two residues that made each note, and
+      the chain unrolled into a 34 px strip along the stage's lower edge that lights from all
+      five voices. Both ask `audio.notesSounding` rather than being pushed by the scheduler,
+      which queues a second ahead and nothing at all while paused. Measured live: 23 notes
+      sounding, 17 chords, 22 of 76 residues lit. Four collisions on the way, three of them
+      caused by adding a second canvas to the stage: `.stage-wrap canvas` outranked
+      `.residue-ribbon` and the strip took the whole viewer; two browser gates picked the
+      wrong canvas with `#stage canvas` and failed on a null WebGL context; and the chords
+      were scaled by the ruler when the cartoon is swept in quantised units, so they landed
+      in a knot at the origin. The fourth was mine twice over - a backtick in a comment
+      inside a JS template literal, which is documented in another test in this repo.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
 - [x] **Genie 2 gallery entries**, three of them: an all-alpha 64-mer, a mixed alpha/beta
       72-mer and an 80-residue helical bundle, each a backbone that has never existed. Baked

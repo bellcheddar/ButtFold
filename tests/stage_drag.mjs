@@ -100,7 +100,14 @@ const state = () => evaluate(`(() => {
 
 /** A fingerprint of what the stage is actually showing. */
 const pixels = () => evaluate(`(() => {
-  const canvas = document.querySelector('#stage canvas');
+  // Excluding the ribbon: the stage holds two canvases now - three.js's, and the residue
+  // ribbon drawn over it in 2D. A bare selector picks whichever comes first, and asking a
+  // 2D canvas for a WebGL context returns null rather than throwing, so this failed as
+  // "Cannot read properties of null" a long way from the selector that caused it.
+  //
+  // And no backticks in this comment: it sits inside a JS template literal, where one would
+  // end the literal. That is the second time in this session.
+  const canvas = document.querySelector('#stage canvas:not(.residue-ribbon)');
   const player = window.buttfoldPlayer;
   const frame = player.frames[player.index];
   player.stage.render(frame.points, frame.ss, frame.confidence);
@@ -113,7 +120,7 @@ const pixels = () => evaluate(`(() => {
 })()`);
 
 const box = await evaluate(`(() => {
-  const r = document.querySelector('#stage canvas').getBoundingClientRect();
+  const r = document.querySelector('#stage canvas:not(.residue-ribbon)').getBoundingClientRect();
   return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) };
 })()`);
 

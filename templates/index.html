@@ -143,6 +143,10 @@
       <input type="range" class="volume" id="volume" min="0" max="100" value="70"
              aria-label="Volume" title="Volume">
     </div>
+    <!-- The chain unrolled, along the bottom edge. Inside the stage rather than under it,
+         because it is about what is happening in the stage and because the page has no
+         spare height. See static/js/ribbon.js for why it earns the space twice over. -->
+    <canvas class="residue-ribbon" id="residue-ribbon" aria-hidden="true"></canvas>
     <div class="stage-badge">
       <span class="engine" id="badge-engine">G&#333; model &middot; toward a known structure</span>
       <span class="where" id="badge-where">precomputed</span>

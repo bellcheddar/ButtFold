@@ -76,6 +76,7 @@ export class FoldAudio {
     this.context = null;
     this.moments = [];
     this.timeline = [];
+    this.events = [];
     this.style = null;
     this.positionsFor = null;   // (frameIndex, residue) -> [x, y, z] in quantised units
     this.playing = false;
@@ -174,6 +175,79 @@ export class FoldAudio {
     }
     this.durationSeconds = seconds;
     this.nextIndex = 0;
+    this._layOutEvents();
+  }
+
+  /**
+   * Every note in the piece, flattened onto one time-sorted array.
+   *
+   * **This is how the page finds out what is sounding, and it is a query rather than a
+   * callback.** The obvious way to drive a visual from audio is to have the scheduler
+   * announce each note as it queues it - but the scheduler runs a LOOKAHEAD, so it queues
+   * notes up to a second before they are audible, and a visual driven from it would run
+   * ahead of its own music. It also queues nothing while paused, so scrubbing would show an
+   * empty stage.
+   *
+   * Asking "what is sounding at this instant" instead costs a binary search, cannot drift
+   * from the audio clock because it IS the audio clock, and answers the same when paused as
+   * when playing. It is the same shape as `frameAtFractional`, which drives the structure
+   * for the same reasons.
+   */
+  _layOutEvents() {
+    this.events = [];
+    for (const entry of this.timeline) {
+      for (const note of entry.moment.notes) {
+        this.events.push({
+          at: entry.startSeconds + note.beatOffset * entry.secondsPerBeat,
+          seconds: Math.max(note.duration * entry.secondsPerBeat, 0.05),
+          voice: note.voice,
+          residue: note.residue,
+          partner: note.partner,
+          // 1 to 127 from the sonifier; 0 to 1 here, because everything downstream of this
+          // is an opacity or a line width.
+          velocity: note.note.velocity / 127,
+        });
+      }
+    }
+    // A contact flurry runs past its own moment, so the events are NOT already in order.
+    this.events.sort((a, b) => a.at - b.at);
+    // The longest note in the piece, which is how far back the search below has to look.
+    this.longestEvent = this.events.reduce((m, e) => Math.max(m, e.seconds), 0);
+  }
+
+  /**
+   * The notes sounding at `seconds`, each with how far through its life it is.
+   *
+   * A note is drawn for the LONGER of its own duration and `minimumTail`, and that is not a
+   * detail. The five voices differ by more than an order of magnitude in length: a contact
+   * is a semiquaver, 60 ms at this tempo, which on its own would be a single frame on screen
+   * and read as a flicker rather than a strike; a pad chord is held for the whole bar, four
+   * seconds, and cutting it off after a fixed tail would take the light off a residue while
+   * the listener can plainly still hear it. So the floor is a visual decay for the short
+   * notes, and the long ones are drawn for exactly as long as they sound.
+   *
+   * `age` runs 0 to 1 across whichever of the two won, so a caller's fade does not have to
+   * know which kind of note it has.
+   */
+  notesSounding(seconds, minimumTail = 0.9) {
+    const events = this.events ?? [];
+    if (!events.length) return [];
+    // Back far enough to catch the longest note in the piece still ringing.
+    const from = seconds - Math.max(this.longestEvent ?? 0, minimumTail);
+    let low = 0, high = events.length - 1, start = events.length;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (events[mid].at >= from) { start = mid; high = mid - 1; } else low = mid + 1;
+    }
+    const out = [];
+    for (let i = start; i < events.length && events[i].at <= seconds; i++) {
+      const event = events[i];
+      const span = Math.max(event.seconds, minimumTail);
+      const age = (seconds - event.at) / span;
+      if (age >= 1) continue;
+      out.push({ ...event, age });
+    }
+    return out;
   }
 
   /** Where in the timeline playback currently is. */
