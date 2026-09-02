@@ -855,6 +855,15 @@ class Player {
       // what is sounding NOW cannot drift, because it is the same clock the frame comes
       // from. Both drawings take the same event list, so a chord and its two lit cells are
       // by construction the same note.
+      // Said out loud rather than left as a mystery: a context can report "running", take
+      // every note the scheduler gives it, and produce nothing. The page has no way to hear
+      // itself, so the one thing it can do is notice and say so.
+      const trouble = this.audio.diagnose();
+      if (trouble !== this._audioTrouble) {
+        this._audioTrouble = trouble;
+        $('audio-note').textContent = trouble ?? '';
+      }
+
       const heard = this.audio.notesSounding(this.audio.positionSeconds,
                                              SOUNDING_TAIL_SECONDS);
       this.stage.setSounding(heard);
@@ -910,6 +919,7 @@ class Player {
       this.playing = false;
       this.audio.pause();
       $('play').textContent = 'Play';
+      if (this._audioTrouble) { this._audioTrouble = null; $('audio-note').textContent = ''; }
       return;
     }
     // Restart from the beginning if it has run to the end, so Play always plays something.

@@ -142,3 +142,46 @@ test('setSounding replaces rather than accumulates', () => {
   assert.equal(ribbon.glow[5], 0, 'the previous frame\'s note is still lit');
   assert.equal(ribbon.glow[6], 1);
 });
+
+/* ------------------------------------------------------------------ the watchdog -------
+ *
+ * A context that reports "running" and produces silence is the failure this exists for, so
+ * the states are exercised against a stub rather than against a real device: the point is
+ * what the page SAYS, and none of these conditions can be provoked on demand in a browser.
+ */
+function withContext(state, clock = () => 0) {
+  const audio = new FoldAudio();
+  audio.context = { get state() { return state; }, get currentTime() { return clock(); } };
+  return audio;
+}
+
+test('a context that is not running is reported rather than left silent', () => {
+  assert.match(withContext('suspended').diagnose(), /suspended/);
+  // `interrupted` is Safari's, it is not in the spec, and no catch will ever see it.
+  assert.match(withContext('interrupted').diagnose(), /Safari/);
+  assert.equal(withContext('running').diagnose(), null, 'a healthy context should say nothing');
+});
+
+test('a running context whose clock does not move is reported', () => {
+  let wall = Date.now();
+  const audio = withContext('running', () => 0.005);
+  audio.playing = true;
+  assert.equal(audio.diagnose(), null, 'it must not complain before it has watched for a while');
+  // Wind the wall clock past the half second the watchdog waits for.
+  audio._clockSeenWall = wall - 900;
+  assert.match(audio.diagnose(), /not running its clock/);
+});
+
+test('a running context whose clock advances is left alone', () => {
+  let t = 0;
+  const audio = withContext('running', () => t);
+  audio.playing = true;
+  audio.diagnose();
+  audio._clockSeenWall = Date.now() - 900;
+  t = 1.2;
+  assert.equal(audio.diagnose(), null);
+});
+
+test('nothing is diagnosed before there is a context at all', () => {
+  assert.equal(new FoldAudio().diagnose(), null);
+});

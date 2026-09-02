@@ -300,6 +300,7 @@ export class FoldAudio {
     this.offsetSeconds = fromSeconds ?? this.offsetSeconds;
     this.startedAt = this.context.currentTime;
     this.playing = true;
+    this._clockSeenAt = null;      // the watchdog measures from here, not from load
     // Resume scheduling from the first moment at or after the resume point, so seeking does
     // not replay everything before it in a burst.
     this.nextIndex = this.timeline.findIndex(t => t.startSeconds >= this.offsetSeconds);
@@ -324,6 +325,46 @@ export class FoldAudio {
   setVolume(value) {
     this.volume = Math.min(Math.max(value, 0), 1);
     if (this.master) this.master.gain.value = this.volume;
+  }
+
+  /**
+   * Is the audio actually running, or only claiming to be?
+   *
+   * A context can report `running`, accept every note the scheduler queues, and produce
+   * silence. Two ways that happens and neither raises anything: the render thread never gets
+   * driven, so `currentTime` sits where it started - measured on this Mac, a bare
+   * AudioContext with no page of ours in it advanced 0.005 s in 1.5 s, one render quantum -
+   * or Safari puts the context into `interrupted`, which is a state the spec does not have
+   * and no `catch` will ever see.
+   *
+   * Both look identical from the outside: the transport says Pause, the structure folds, the
+   * chords strike, and nothing comes out. That is exactly the kind of quiet failure this app
+   * is not supposed to have, so it is detected and said out loud.
+   */
+  diagnose() {
+    if (!this.context) return null;
+    if (this.context.state === 'interrupted') {
+      return 'Safari has interrupted the audio. Playing anything else and coming back, or '
+           + 'reloading the tab, usually restores it.';
+    }
+    if (this.context.state !== 'running') {
+      return `The audio context is "${this.context.state}", so nothing will be heard. `
+           + 'Press Play again.';
+    }
+    if (!this.playing) return null;
+    const now = this.context.currentTime;
+    if (this._clockSeenAt == null) { this._clockSeenAt = now; this._clockSeenWall = Date.now(); }
+    // Half a second of wall clock is far longer than a render quantum, so a clock that has
+    // not moved in that time is not merely between buffers.
+    if (Date.now() - this._clockSeenWall < 500) return null;
+    const advanced = now - this._clockSeenAt;
+    this._clockSeenAt = now;
+    this._clockSeenWall = Date.now();
+    if (advanced < 0.05) {
+      return 'The browser started the audio but is not running its clock, so the notes are '
+           + 'being scheduled into silence. Reloading the tab usually clears it.';
+    }
+    return null;
   }
 
   _tick() {
