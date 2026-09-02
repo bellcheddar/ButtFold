@@ -151,14 +151,21 @@
          music drawn on the structure - the chords struck between the two residues that made
          each note, and the strip below - and only one of those two is about secondary
          structure. Turned off, the stage is the plain cartoon fold and nothing else. -->
-    <label class="music-toggle" for="music-toggle">
-      <input type="checkbox" id="music-toggle" checked>
-      <span>Show the music</span>
-    </label>
-    <div class="stage-badge">
-      <span class="engine" id="badge-engine">G&#333; model &middot; toward a known structure</span>
-      <span class="where" id="badge-where">precomputed</span>
-      <span class="status" id="live-status"></span>
+
+    <!-- Badge and switch in ONE row rather than two things pinned to the same corner. Both
+         used to be absolutely positioned against the bottom edge and sized independently,
+         which is fine until the stage is 350 px wide: the badge wraps to two lines, grows
+         under the switch, and the two overlap. A flex row with a gap cannot do that. -->
+    <div class="stage-footer">
+      <div class="stage-badge">
+        <span class="engine" id="badge-engine">G&#333; model &middot; toward a known structure</span>
+        <span class="where" id="badge-where">precomputed</span>
+        <span class="status" id="live-status"></span>
+      </div>
+      <label class="music-toggle" for="music-toggle">
+        <input type="checkbox" id="music-toggle" checked>
+        <span>Show the music</span>
+      </label>
     </div>
   </div>
 
@@ -244,12 +251,10 @@
       </summary>
       <div class="rest">
         <p>That is not a prediction of an unknown structure and it is not a folding pathway.
-        The ESMFold engine adds a second claim, and the two are separate: ESMFold predicts
-        where a real UniProt protein ends up &mdash; at Meta, not on this server &mdash; and
-        the G&#333; model then animates a chain collapsing toward that prediction. A
-        prediction can be wrong, so every protein offered has an experimental structure in
-        the PDB to check it against. Genie 2 makes no claim at all: those backbones have
-        never existed.</p>
+        ESMFold predicts where a real UniProt protein ends up &mdash; at Meta, not on this
+        server &mdash; and the G&#333; model then animates a chain collapsing toward that
+        prediction. A prediction can be wrong, so every protein offered has an experimental
+        structure in the PDB to check it against.</p>
         <p>The 150 poses in a trajectory are 50,000 integration steps apart, far enough that
         an atom can move further than the protein is wide between two of them. What you see
         in between is drawn to join them up, not computed, so the motion is smooth where the

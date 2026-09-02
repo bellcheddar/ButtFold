@@ -49,16 +49,15 @@ DISCLOSURE_PARAGRAPH = (
 DISCLOSURE_SUMMARY = "No protein folds this way."
 
 DISCLOSURE_DETAIL = (
-    "That is not a prediction of an unknown structure and it is not a folding pathway. The "
-    "ESMFold engine adds a second claim, and the two are separate: ESMFold predicts where a "
-    "real UniProt protein ends up \u2014 at Meta, not on this server \u2014 and the G\u014d "
-    "model then animates a chain collapsing toward that prediction. A prediction can be "
-    "wrong, so every protein offered has an experimental structure in the PDB to check it "
-    "against. Genie 2 makes no claim at all: those backbones have never existed. The 150 "
-    "poses in a trajectory are 50,000 integration steps apart, far enough that an atom can "
-    "move further than the protein is wide between two of them. What you see in between is "
-    "drawn to join them up, not computed, so the motion is smooth where the model is not. "
-    "The music is a faithful map of the simulation's events, and nothing more."
+    "That is not a prediction of an unknown structure and it is not a folding pathway. "
+    "ESMFold predicts where a real UniProt protein ends up \u2014 at Meta, not on this "
+    "server \u2014 and the G\u014d model then animates a chain collapsing toward that "
+    "prediction. A prediction can be wrong, so every protein offered has an experimental "
+    "structure in the PDB to check it against. The 150 poses in a trajectory are 50,000 "
+    "integration steps apart, far enough that an atom can move further than the protein is "
+    "wide between two of them. What you see in between is drawn to join them up, not "
+    "computed, so the motion is smooth where the model is not. The music is a faithful map "
+    "of the simulation's events, and nothing more."
 )
 
 

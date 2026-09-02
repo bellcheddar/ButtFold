@@ -271,12 +271,21 @@ body.picking-uniprot { --bf-page-chrome: 302px; }
   width: 100%; height: 34px; display: block; pointer-events: none;
 }
 
-/* Bottom right, above the strip it controls. Both this and the badge sit clear of the
-   ribbon while it is shown and drop to the stage's edge when it is not, so turning the music
-   off leaves no empty band where the strip used to be. */
+/* One row along the bottom of the stage, holding the badge and the switch. Positioning both
+   of them separately against the same corner worked until the stage was 350 px wide, where
+   the badge wraps to two lines and grows underneath the switch. Layout does the spacing now,
+   and `flex-wrap` puts the switch on its own line rather than on top of anything.
+
+   It clears the ribbon while the strip is shown and drops to the stage's edge when it is
+   not, so turning the music off leaves no empty band where the strip used to be. */
+.stage-footer {
+  position: absolute; z-index: 2; left: 12px; right: 12px; bottom: 42px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap-reverse;
+}
+
 .music-toggle {
-  position: absolute; z-index: 2; right: 12px; bottom: 42px;
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
   padding: 6px 12px 6px 10px; border-radius: var(--bf-radius-pill);
   background: rgba(5, 4, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -301,18 +310,19 @@ body.picking-uniprot { --bf-page-chrome: 302px; }
 }
 .music-toggle input:focus-visible { outline: 2px solid var(--bf-action); outline-offset: 2px; }
 
-/* Music off: the strip goes, and everything that was standing clear of it comes down. */
+/* Music off: the strip goes, and the row that was standing clear of it comes down. */
 .stage-wrap.no-music canvas.residue-ribbon { display: none; }
-.stage-wrap.no-music .stage-badge,
-.stage-wrap.no-music .music-toggle { bottom: 12px; }
+.stage-wrap.no-music .stage-footer { bottom: 12px; }
 
 .stage-badge {
-  position: absolute; left: 12px; bottom: 42px;
+  /* In the flow of the footer row now. `min-width: 0` so a long badge shrinks and wraps
+     inside its own pill instead of pushing the switch off the stage. */
+  min-width: 0; max-width: 100%;
   background: rgba(5, 4, 14, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--bf-radius-pill);
   padding: 6px 12px; font: 500 12px/1.3 var(--bf-mono);
-  color: var(--bf-text-3); max-width: calc(100% - 24px);
+  color: var(--bf-text-3);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .stage-badge .engine { color: var(--bf-amber); }

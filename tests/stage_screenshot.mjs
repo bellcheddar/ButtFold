@@ -333,7 +333,18 @@ const mobile = await evaluate(`(() => {
   const tops = [...document.querySelectorAll('.readout')]
     .map(el => Math.round(el.getBoundingClientRect().top));
   const rows = [...new Set(tops)].sort((a, b) => a - b);
+  // The badge and the music switch used to be pinned to the same corner and sized
+  // independently: at 350 px the badge wraps to two lines, grows underneath the switch, and
+  // the two overlap. Measured as rectangles rather than trusted, because it looked correct
+  // at every desktop width and only failed on a phone.
+  const badge = document.querySelector('.stage-badge').getBoundingClientRect();
+  const toggle = document.querySelector('.music-toggle').getBoundingClientRect();
+  const overlap = !(badge.right <= toggle.left || toggle.right <= badge.left
+                    || badge.bottom <= toggle.top || toggle.bottom <= badge.top);
   return {
+    badgeOverlapsToggle: overlap,
+    footerInsideStage: badge.left >= stage.left - 1 && toggle.right <= stage.right + 1
+                       && badge.top >= stage.top - 1 && toggle.bottom <= stage.bottom + 1,
     // The two charts must be on a phone AND have a canvas with height in them. They were
     // never hidden: the canvas flexes into its row, and off the stage's row there was no
     // height to flex into, so both drew a title and a legend with a hairline between them.
@@ -376,6 +387,8 @@ for (const d of desktops) {
               + `${d.controlRows === 1 ? '' : 's'} (${d.controlsWidth}px), `
               + `readouts ${d.readoutRows} row${d.readoutRows === 1 ? '' : 's'}`);
 }
+console.log(`mobile 390px  badge/switch overlap ${mobile.badgeOverlapsToggle}, `
+            + `both inside the stage ${mobile.footerInsideStage}`);
 console.log(`mobile 390px  charts ${mobile.chartCanvases.join(' and ')}px tall, readouts `
             + `${mobile.readoutColumns}x${mobile.readoutRows}, `
             + `body ${mobile.bodyScrollWidth}px wide, stage `
@@ -502,6 +515,12 @@ if (mobile.chartCanvases.length !== 2) {
 if (!mobile.chartCanvases.every(h => h >= 80)) {
   failures.push(`a chart canvas is ${Math.min(...mobile.chartCanvases)}px tall on a phone: `
                 + 'the chart is present but there is nothing in it');
+}
+if (mobile.badgeOverlapsToggle) {
+  failures.push('the engine badge and the music switch overlap on a phone');
+}
+if (!mobile.footerInsideStage) {
+  failures.push('the badge or the music switch is outside the viewer on a phone');
 }
 if (mobile.readoutRows !== 2 || mobile.readoutColumns !== 4) {
   failures.push(`the readouts are ${mobile.readoutColumns} by ${mobile.readoutRows} on a `
