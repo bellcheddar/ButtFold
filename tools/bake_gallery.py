@@ -60,6 +60,8 @@ OUTPUT = REPO / "static" / "baked" / "gallery.json"
 CHOSEN = ["ubiquitin", "protein_g_b1", "alpha3d", "villin_hp36", "ww_domain", "trp_cage"]
 
 FRAME_CAP = 150            # interpolated in the browser; PLAN section 5.3
+COLLAPSE_TOLERANCE = 1.2   # a Go contact is made within 1.2x its native distance
+EMERGENCE_TOLERANCE = 0.25 # a diffusion contact is made within 25% OF its final one
 QUANTISED_RANGE = 1000     # a tenth of a per cent of the structure's width
 
 # Cooling rather than more steps. PhoneFold measured a fold going from 0.86 A to 0.23 A for
@@ -195,6 +197,108 @@ def bake(protein_id: str) -> dict:
     return bake_frames(record, ca, wall)
 
 
+def formed(distances: np.ndarray, sigma: np.ndarray, regime: str) -> np.ndarray:
+    """Which contacts count as made, in this frame.
+
+    Two regimes, because two engines produce opposite trajectories and one rule cannot
+    describe both.
+
+    `collapse` is the Go model: a chain starts extended and comes together, so a contact is
+    made once the pair is within 1.2x its native separation. Anything closer than that is
+    closer than the native structure and still counts, which is right for a collapse.
+
+    `emerge` is Genie 2, and the same rule is useless there. A diffusion trajectory starts
+    as every residue piled into a ball of radius 1.1 Angstroms - measured - so EVERY pair is
+    already under any distance bar and the whole contact map fires on frame one. What
+    changes over a diffusion trajectory is not whether residues are close but whether they
+    are at the RIGHT distance, so this is two-sided. Measured over one 80 residue
+    trajectory, the one-sided rule reads 1.00 from the first frame to the last while this
+    one rises 0.00, 0.01, 0.09, 0.33, 0.63, 0.93, 1.00.
+    """
+    if regime == "emerge":
+        return np.abs(distances - sigma) <= EMERGENCE_TOLERANCE * sigma
+    return distances < COLLAPSE_TOLERANCE * sigma
+
+
+def contact_onsets(frames, pairs, sigma, regime):
+    """When each reference contact is first made, as a per-frame list of pairs.
+
+    The `collapse` regime uses `ContactTracker`, which is the class the browser has a port
+    of and which live_parity pins byte for byte. `emerge` cannot: its rule is two-sided and
+    is defined against the trajectory's own last frame, which only a baker has.
+    """
+    if regime == "collapse":
+        tracker = ContactTracker()
+        return [tracker.update(f) for f in frames]
+    seen = np.zeros(len(pairs), dtype=bool)
+    out = []
+    for frame in frames:
+        d = np.linalg.norm(frame[pairs[:, 0]] - frame[pairs[:, 1]], axis=1)
+        now = formed(d, sigma, regime) & ~seen
+        seen |= now
+        out.append([[int(pairs[k, 0]), int(pairs[k, 1])] for k in np.flatnonzero(now)])
+    return out
+
+
+def build_frames(frames, per_frame_contacts, pairs, sigma, regime="collapse"):
+    """The artefact's frames, from a trajectory. **The only frame builder there is.**
+
+    `static/js/frames.js` is the browser's half of this and tests/live_parity.test.mjs runs
+    the two over the same coordinates and asserts the output is byte for byte identical. A
+    second builder for the generative engine would put that guarantee out of reach, so the
+    generative bake differs from the structure-based one only in which contacts it counts
+    and which assertions it makes - never in how a frame is written.
+    """
+    smoother = psea.Hysteresis(residue_count=frames[0].shape[0])
+    # **Translate per frame, scale once.** Both halves took a wrong turn first in PhoneFold.
+    # Centring every frame on the folded structure's centroid put the coil off to one side,
+    # because a coil's centre of mass is nowhere near the core it collapses into, and the
+    # animation drifted into frame as it went. Centring on the trajectory's bounding box
+    # fixed the coil and broke the ending. What a viewer does is keep the object in the
+    # middle and let it change size: centre each frame on its own centroid, take the scale
+    # once from the widest frame.
+    centred = [f - f.mean(axis=0) for f in frames]
+    half = max(float(np.abs(c).max()) for c in centred)
+    scale = QUANTISED_RANGE / max(half, 1e-6)
+    # The ruler, recorded. Quantised units are unitless by construction, and anything that
+    # wants real lengths back - the live path's scale continuity, the spatial audio, any
+    # future export - would otherwise have to reconstruct it from a frame's Rg, which is a
+    # derived quantity and lossy. One float per fold.
+    angstroms_per_unit = 1.0 / scale
+
+    baked_frames = []
+    for index, (frame, contacts) in enumerate(zip(centred, per_frame_contacts)):
+        raw_ss, raw_confidence = psea.assign(frames[index])
+        ss, ss_confidence = smoother.smooth(raw_ss, raw_confidence)
+        d = np.linalg.norm(frames[index][pairs[:, 0]] - frames[index][pairs[:, 1]], axis=1)
+        q = float(formed(d, sigma, regime).mean()) if len(pairs) else 0.0
+        # Per-residue confidence, rounded to whole percent. That is a tenth of the
+        # sonifier's velocity resolution (velocity = 30 + 90q, so one percent is 0.9 of a
+        # MIDI velocity step), so nothing musical is lost and the payload stays small.
+        confidence = per_residue_native_fraction(frames[index], pairs, sigma)
+        baked_frames.append({
+            "points": np.round(frame * scale).astype(int).reshape(-1).tolist(),
+            "newContacts": [[int(i), int(j)] for i, j in contacts],
+            "ss": psea.run_length_encode(ss),
+            "conf": [int(round(c)) for c in confidence],
+            # P-SEA's own certainty per residue, which is a different thing from `conf`
+            # above: that is how much of the fold has happened, this is how sure the
+            # assigner is that this residue is helix or sheet. The cartoon sweeps its cross
+            # section from it, so a ribbon grows in rather than snapping. Carried through
+            # the same hysteresis as the structure, so a held residue keeps its own
+            # structure's certainty rather than borrowing a different one's.
+            "ssConf": [int(round(c * 100)) for c in ss_confidence],
+            "rg": int(round(radius_of_gyration(frames[index]) * 10)),
+            "q": int(round(q * 1000)),
+        })
+
+    # Computed here, with the scale it belongs to, rather than by the caller: `scale` was
+    # local to this block and the caller went on referring to it after the extraction.
+    widest_ratio = round(
+        QUANTISED_RANGE / max(float(np.abs(centred[0]).max()) * scale, 1e-6), 3)
+    return baked_frames, angstroms_per_unit, widest_ratio
+
+
 def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
     """Bake a trajectory that has already been folded.
 
@@ -243,49 +347,8 @@ def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
     # --- geometry per frame ------------------------------------------------------------
     pairs = native_pairs(native)
     sigma = np.linalg.norm(native[pairs[:, 0]] - native[pairs[:, 1]], axis=1)
-    smoother = psea.Hysteresis(residue_count=len(native))
-
-    # **Translate per frame, scale once.** Both halves took a wrong turn first in PhoneFold.
-    # Centring every frame on the folded structure's centroid put the coil off to one side,
-    # because a coil's centre of mass is nowhere near the core it collapses into, and the
-    # animation drifted into frame as it went. Centring on the trajectory's bounding box
-    # fixed the coil and broke the ending. What a viewer does is keep the object in the
-    # middle and let it change size: centre each frame on its own centroid, take the scale
-    # once from the widest frame.
-    centred = [f - f.mean(axis=0) for f in frames]
-    half = max(float(np.abs(c).max()) for c in centred)
-    scale = QUANTISED_RANGE / max(half, 1e-6)
-    # The ruler, recorded. Quantised units are unitless by construction, and anything that
-    # wants real lengths back - the live path's scale continuity, the spatial audio, any
-    # future export - would otherwise have to reconstruct it from a frame's Rg, which is a
-    # derived quantity and lossy. One float per fold.
-    angstroms_per_unit = 1.0 / scale
-
-    baked_frames = []
-    for index, (frame, contacts) in enumerate(zip(centred, per_frame_contacts)):
-        raw_ss, raw_confidence = psea.assign(frames[index])
-        ss, ss_confidence = smoother.smooth(raw_ss, raw_confidence)
-        d = np.linalg.norm(frames[index][pairs[:, 0]] - frames[index][pairs[:, 1]], axis=1)
-        q = float((d < 1.2 * sigma).mean()) if len(pairs) else 0.0
-        # Per-residue confidence, rounded to whole percent. That is a tenth of the
-        # sonifier's velocity resolution (velocity = 30 + 90q, so one percent is 0.9 of a
-        # MIDI velocity step), so nothing musical is lost and the payload stays small.
-        confidence = per_residue_native_fraction(frames[index], pairs, sigma)
-        baked_frames.append({
-            "points": np.round(frame * scale).astype(int).reshape(-1).tolist(),
-            "newContacts": [[int(i), int(j)] for i, j in contacts],
-            "ss": psea.run_length_encode(ss),
-            "conf": [int(round(c)) for c in confidence],
-            # P-SEA's own certainty per residue, which is a different thing from `conf`
-            # above: that is how much of the fold has happened, this is how sure the
-            # assigner is that this residue is helix or sheet. The cartoon sweeps its cross
-            # section from it, so a ribbon grows in rather than snapping. Carried through
-            # the same hysteresis as the structure, so a held residue keeps its own
-            # structure's certainty rather than borrowing a different one's.
-            "ssConf": [int(round(c * 100)) for c in ss_confidence],
-            "rg": int(round(radius_of_gyration(frames[index]) * 10)),
-            "q": int(round(q * 1000)),
-        })
+    baked_frames, angstroms_per_unit, widest_ratio = build_frames(
+        frames, per_frame_contacts, pairs, sigma)
 
     quality = {
         "nativeFraction": round(baked_frames[-1]["q"] / 1000, 3),
@@ -327,8 +390,7 @@ def bake_frames(record: dict, ca: np.ndarray, wall: float) -> dict:
         # gallery it runs 1.05 to 1.39, so a live fold that scales from its own starting
         # coil and then grows monotonically never has to shrink by much, and never shrinks
         # at all in the common case.
-        "widestFrameRatio": round(
-            QUANTISED_RANGE / max(float(np.abs(centred[0]).max()) * scale, 1e-6), 3),
+        "widestFrameRatio": widest_ratio,
         "frames": baked_frames,
     }
 

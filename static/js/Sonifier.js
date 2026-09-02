@@ -298,7 +298,19 @@ export class Sonifier {
     }
     const degree = this.style.progression[this.chordIndex];
 
-    const compact = compaction(frame.radiusOfGyration, frame.residueCount);
+    // **How far through the fold we are, which is not the same question for both engines.**
+    //
+    // For the Gō model it is compaction: 0 at the denatured radius of gyration for this
+    // length and 1 at the native one, so the music accelerates as the chain comes together.
+    //
+    // For a diffusion trajectory that measure is not merely wrong but constant. Genie 2
+    // starts with every residue piled into a ball of radius 1.1 Angstroms, far tighter than
+    // any native structure, so `compaction` clamps to 1 on the first frame and stays there:
+    // maximum tempo from beginning to end, no accelerando, and a piece that says nothing
+    // about what is happening. What IS happening is that the final structure is resolving
+    // out of noise, and `progress` carries exactly that - the fraction of the end structure
+    // already at its final geometry, which the baker measured frame by frame.
+    const compact = frame.progress ?? compaction(frame.radiusOfGyration, frame.residueCount);
     const tempo = this.style.tempoSlow
       + (this.style.tempoFast - this.style.tempoSlow) * Math.min(Math.max(compact, 0), 1);
     // A single octave of lift across the whole fold. More would put the texture off the top
@@ -510,6 +522,10 @@ export function score(fold, style, targetSeconds = TARGET_SECONDS) {
       // difference between 21.3 and its single-precision neighbour reaches the tempo.
       radiusOfGyration: f32(frame.rg / 10),
       residueCount: fold.residueCount,
+      // Only for a generative fold, where compaction cannot say anything: see `moment`.
+      // Left undefined for the Gō engines so their pacing is byte for byte what it was,
+      // which tests/sonifier_parity.test.mjs pins against the Swift.
+      progress: fold.engine === 'generative' ? frame.q / 1000 : undefined,
       newContacts: frame.newContacts,
     });
     if (moment) moments.push(moment);

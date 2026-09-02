@@ -21,6 +21,11 @@ from buttfold.paths import CACHE_DIR
 
 REPO = Path(__file__).resolve().parent.parent
 GALLERY = REPO / "static" / "baked" / "gallery.json"
+# Genie 2 entries, baked separately because they are made by a different engine and gated by
+# different assertions - see tools/bake_genie.py - but served through the same gallery, the
+# same route and the same player. One file each rather than one big one: they are added a
+# few at a time and a single artefact would have to be rewritten to add one.
+GENIE = REPO / "static" / "baked" / "genie"
 CACHE = CACHE_DIR
 
 _lock = threading.Lock()
@@ -34,7 +39,14 @@ def _load_gallery() -> dict:
             if not GALLERY.exists():
                 raise FileNotFoundError(
                     f"{GALLERY} is missing. Bake it: tools/bake_gallery.py")
-            _gallery = json.loads(GALLERY.read_text())
+            loaded = json.loads(GALLERY.read_text())
+            # Appended rather than merged into the committed gallery file, so a re-bake of
+            # either half cannot disturb the other. The Go folds come first because the page
+            # opens on one and because a visitor should meet the real proteins before the
+            # invented ones.
+            for path in sorted(GENIE.glob("genie2_*.json")) if GENIE.exists() else []:
+                loaded["folds"].append(json.loads(path.read_text()))
+            _gallery = loaded
         return _gallery
 
 
@@ -68,6 +80,11 @@ def index() -> list[dict]:
                 "radiusOfGyrationStart": quality.get("radiusOfGyrationStart"),
                 "radiusOfGyrationEnd": quality.get("radiusOfGyrationEnd"),
                 "collapseRatio": quality.get("collapseRatio"),
+                # A generative trajectory has no native to be close to and does not
+                # collapse; it expands. Carried alongside rather than squeezed into the
+                # same field, so nothing has to guess which engine a number came from.
+                "expansionRatio": quality.get("expansionRatio"),
+                "structuredFraction": quality.get("structuredFraction"),
                 "seconds": quality.get("seconds"),
             },
         })

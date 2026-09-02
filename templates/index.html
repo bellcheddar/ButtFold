@@ -162,8 +162,8 @@
     <!-- Compaction: 0 at the denatured radius of gyration for a chain this length and 1 at
          the native one, both from measured scaling laws. Normalised by length, so it says
          how folded this protein is rather than how big it is. -->
-    <div class="readout"><span class="k">Compact</span><span class="v" id="r-compact">&mdash;</span></div>
-    <div class="readout"><span class="k">Native</span><span class="v" id="r-q">&mdash;</span></div>
+    <div class="readout"><span class="k" id="k-compact">Compact</span><span class="v" id="r-compact">&mdash;</span></div>
+    <div class="readout"><span class="k" id="k-q">Native</span><span class="v" id="r-q">&mdash;</span></div>
     <div class="readout"><span class="k">Contacts</span><span class="v" id="r-contacts">&mdash;</span></div>
     <div class="readout"><span class="k">Helix</span><span class="v helix" id="r-helix">&mdash;</span></div>
     <div class="readout"><span class="k">Sheet</span><span class="v sheet" id="r-sheet">&mdash;</span></div>
@@ -181,7 +181,7 @@
     <div class="chart">
       <h3>Radius of gyration over time</h3>
       <canvas id="chart-rg"></canvas>
-      <div class="legend">the collapse, in &#197;ngstr&ouml;ms &middot; 9-frame mean</div>
+      <div class="legend" id="rg-legend">the collapse, in &#197;ngstr&ouml;ms &middot; 9-frame mean</div>
     </div>
   </div>
 
@@ -200,7 +200,14 @@
             aria-pressed="{{ 'true' if loop.first else 'false' }}">
       <span class="name">{{ fold.name }}</span>
       <span class="sub">{% if fold.engine == 'generative' %}a protein that has never existed{% else %}{{ fold.residueCount }} residues &middot; {{ fold.organism or 'designed' }}{% endif %}</span>
+      <!-- Two engines, two sets of numbers. A generative entry has no native structure to
+           be near, so Q and an RMSD would both be answers to a question nobody asked; what
+           it has instead is how far it opened out and how much structure came with it. -->
+      {% if fold.engine == 'generative' %}
+      <span class="quality">R<sub>g</sub> {{ fold.quality.radiusOfGyrationStart }} &rarr; {{ fold.quality.radiusOfGyrationEnd }} &#197; &middot; &times;{{ fold.quality.expansionRatio }} &middot; {{ (fold.quality.structuredFraction * 100) | round | int }}% structured</span>
+      {% else %}
       <span class="quality">Q {{ fold.quality.nativeFraction }} &middot; {{ fold.quality.rmsdToNative }} &#197; &middot; R<sub>g</sub> {{ fold.quality.radiusOfGyrationStart }} &rarr; {{ fold.quality.radiusOfGyrationEnd }} &#197;</span>
+      {% endif %}
     </button>
     {% endfor %}
   </div>

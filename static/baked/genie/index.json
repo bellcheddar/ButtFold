@@ -1,0 +1,25 @@
+{
+ "folds": [
+  {
+   "id": "genie2_64_7",
+   "file": "genie/genie2_64_7.json",
+   "name": "Genie 2 backbone, 64 residues",
+   "residueCount": 64,
+   "engine": "generative"
+  },
+  {
+   "id": "genie2_72_8",
+   "file": "genie/genie2_72_8.json",
+   "name": "Genie 2 backbone, 72 residues",
+   "residueCount": 72,
+   "engine": "generative"
+  },
+  {
+   "id": "genie2_80_9",
+   "file": "genie/genie2_80_9.json",
+   "name": "Genie 2 backbone, 80 residues",
+   "residueCount": 80,
+   "engine": "generative"
+  }
+ ]
+}

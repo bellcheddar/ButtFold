@@ -315,7 +315,17 @@ Marc's, 2026-09-01, after seeing it live. He will guide the first item.
       `hash()`, which is randomised per process, so the same protein would have started from
       a different chain after every worker restart while the cache key said otherwise.
 - [ ] The two P0-2 browser rows, deferred by Marc: Safari's protein G time and mobile Safari.
-- [ ] Genie 2 gallery entries: 2 to 4 backbones baked on the Mac, generative labels on the
-      card and the stage.
+- [x] **Genie 2 gallery entries**, three of them: an all-alpha 64-mer, a mixed alpha/beta
+      72-mer and an 80-residue helical bundle, each a backbone that has never existed. Baked
+      rather than served live because 1000 denoising steps is 2.2 min on the Mac and 10.2 on
+      the droplet with no speed-up from more cores. The trajectory runs the other way and
+      three things followed: both bake gates fail correctly and are mirrored (expand
+      fourfold, start as noise, end at CA-CA 3.80 A, end structured); the contact rule has to
+      be two-sided, because in the opening ball every pair is under any distance bar and the
+      Go rule reports the whole map as formed on frame one; and the tempo cannot come from
+      compaction, which clamps to 1 on the first frame and stays there. `build_frames` was
+      extracted so both regimes share ONE frame builder - the rule that makes live_parity
+      possible - and the readouts, the chart legend and the card are all engine-aware now,
+      because "NATIVE 100%" beside a structure that never existed is a quiet false claim.
 - [ ] Flip PhoneFold's `app_store_url` in `static/links.json` when it clears review, and
       verify the badge in the served page.

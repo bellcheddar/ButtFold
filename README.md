@@ -47,9 +47,10 @@ byte-identical frame objects, which is tested rather than asserted.
 
 | | What it is | Compute | When it runs |
 |---|---|---|---|
-| **Gallery** | Six precomputed folds | none | Always. First paint, no capability check, no wait |
+| **Gallery** | Six Gō folds and three Genie 2 backbones, precomputed | none | Always. First paint, no capability check, no wait |
 | **Fold it live** | The same C compiled to WebAssembly, in a Web Worker | your CPU | The primary interactive path where the browser can run it |
 | **ESMFold** | ESMFold predicts a real UniProt protein at Meta; the same C, compiled natively, folds a chain toward that prediction here | ~1 s at Meta, then the droplet | Pick a protein nobody precomputed |
+| **Genie 2** | A diffusion model invents a backbone from noise; the denoising *is* the trajectory | baked on a Mac, once | Always, in the gallery |
 
 A fold the server computes is baked into the gallery's own artefact format, so a queued result
 plays through the identical player with no code path of its own, and converges the cache: a
@@ -70,6 +71,24 @@ gyration within 1.20× of the folded-globule scaling the sonifier already uses. 
 was moved from 1.35 by a fold that failed its bake gate, and the three entries it removed were
 a dimer, an 11-mer and a dodecamer: proteins that *are* folded alone but are only compact as an
 assembly, which is the ribosomal error one step subtler.
+
+**Genie 2 runs the trajectory backwards, and almost none of that is cosmetic.** A Gō fold
+starts as an extended coil and collapses; a diffusion trajectory starts with every residue
+piled into a ball of radius 1.1 Å and *inflates* into a protein, growing secondary structure
+on the way out. Measured on an 80-residue sample: Rg 1.1 → 11.2 Å, and 3003 of 3004 contacts
+"form" on frame one because at the start everything is within any distance you care to name.
+
+Both bake gates therefore fail, and they are right to — they are assertions about *folding*.
+The generative bake states the mirror image of each (it must expand fourfold, start as noise,
+end with CA–CA at 3.80 Å, and finish with real secondary structure), and it goes through the
+same `build_frames` rather than a second builder, because one frame builder is what makes the
+Python-vs-JavaScript parity test possible at all. The contact rule is two-sided for it: not
+"are these residues close" — they always are — but "are they at their final separation",
+which measured 0.00 → 1.00 across a trajectory where the one-sided rule read 1.00 throughout.
+Its tempo comes from that same number, because `compaction` clamps to 1 on the first frame
+and would otherwise play the whole piece flat out. And it is baked rather than served live
+because 1000 denoising steps is 2.2 minutes on a Mac and 10.2 on the droplet, with no
+speed-up from more cores.
 
 **Both computed paths are watched as they happen**, which for the server means the browser reads
 the coordinate file the droplet is still writing to. Progress there was a percentage over a still
@@ -146,7 +165,7 @@ matter here are the ones where every unit test passes and the page does nothing.
 | Gate | What it proves |
 |---|---|
 | `audit_wiring.py` | Every route, module, style, card and element id is reachable. Anything declared and never reached fails the build |
-| pytest, 72 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
+| pytest, 84 tests | Routes, caching, the queue's caps and cache, the honesty strings, and the committed artefact's own assertions |
 | `node --test`, 44 tests | The WASM module against the CLI, the JS geometry ports against the Python, the sonifier against the Swift, the camera's interaction model, and the frame the browser keeps mid-fold against the one the baker keeps |
 | stage renders | A headless screenshot of the stage mid-fold is non-uniform, the three colour modes render differently, and the Play bar is above the fold at four common screen sizes |
 | drag, zoom, reframe | Real pointer input through the DevTools protocol reaches the camera |

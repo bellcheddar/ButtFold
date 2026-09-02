@@ -726,6 +726,24 @@ class Player {
       ? frame.newContacts.length
       : (this.contactsSoFar ?? 0) + frame.newContacts.length;
 
+    // **Two engines, two questions, so two sets of labels.**
+    //
+    // "Compact" and "Native" are answers about a fold: how far along the collapse is, and
+    // how much of the known structure has formed. A Genie 2 trajectory has no native to be
+    // near and does not collapse - it starts as a ball of noise tighter than any protein and
+    // opens out - so `compaction` clamps to 1 on frame one and both readouts sat at a
+    // motionless 100% while the picture changed completely. Reading "NATIVE 100%" about a
+    // structure that never existed is the sort of quiet false claim this app exists not to
+    // make, so the generative engine gets the two measures that do move for it: how near the
+    // size of a folded protein of this length it has reached, and how much of its own final
+    // geometry is in place.
+    const generative = this.engine === 'generative';
+    $('k-compact').textContent = generative ? 'Size' : 'Compact';
+    $('k-q').textContent = generative ? 'Emerged' : 'Native';
+    $('rg-legend').textContent = generative
+      ? 'the expansion, in Ångströms · 9-frame mean'
+      : 'the collapse, in Ångströms · 9-frame mean';
+
     $('r-rg').textContent = frame.rg.toFixed(1);
     // The other standard measure of a chain's size, and the one that says something the
     // radius of gyration does not: a chain can compact while its termini stay apart, which
@@ -737,8 +755,11 @@ class Player {
     // 0 at the denatured radius of gyration for a chain this length and 1 at the native
     // one, both from measured scaling laws. The same function the sonifier drives its
     // accelerando from, so the number on screen and the tempo cannot disagree.
-    $('r-compact').textContent =
-      `${Math.round(compaction(frame.rg, this.residueCount) * 100)}%`;
+    $('r-compact').textContent = generative
+      // Against the folded-globule scaling for this length, which is the same law the
+      // catalogue screen and the sonifier both use. It runs from about 9% to 100%.
+      ? `${Math.round(100 * frame.rg / (2.2 * Math.pow(this.residueCount, 0.38)))}%`
+      : `${Math.round(compaction(frame.rg, this.residueCount) * 100)}%`;
     $('r-q').textContent = `${Math.round(frame.q * 100)}%`;
     $('r-contacts').textContent = String(this.contactsSoFar);
     $('r-helix').textContent = `${Math.round(100 * helix / n)}%`;
