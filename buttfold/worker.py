@@ -159,6 +159,25 @@ def fold_and_bake(job: dict, log) -> Path:
         raise RuntimeError(f"the model exited {process.returncode}: {err.strip()[:400]}")
     log(f"  folded in {wall:.1f} s")
 
+    # **A zero exit code is not proof it wrote anything.** `native/go_model_fold.c` is
+    # vendored verbatim from PhoneFold and checks `fopen` on its INPUTS - perror and exit -
+    # but not on its output: if the file cannot be opened it folds to the end and returns 0
+    # having written nothing. That is not hypothetical, it happened here, and what it looked
+    # like was a FileNotFoundError a hundred lines later in the baker with nothing to say
+    # about the fold. The C is not ours to edit, so the check lives here, next to the thing
+    # that knows what the file was supposed to be.
+    expected = 8 + (steps // stride + 1) * n * 3 * 4
+    if not frames_path.exists():
+        raise RuntimeError(
+            f"the model exited 0 after {wall:.1f} s without writing {frames_path}. It does "
+            f"not check whether it could open its output, so this is almost always a "
+            f"directory that vanished or is not writable.")
+    written = frames_path.stat().st_size
+    if written < expected // 2:
+        raise RuntimeError(
+            f"the model wrote {written} bytes where about {expected} were expected for "
+            f"{steps // stride + 1} frames of {n} residues. The trajectory is truncated.")
+
     # Bake through the SAME code the gallery is baked with, including its assertions. A
     # queued fold that did not collapse must fail loudly here rather than be served as an
     # animation of nothing happening.

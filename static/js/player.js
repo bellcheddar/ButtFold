@@ -26,6 +26,12 @@ const THREE_URL = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three
 
 const $ = id => document.getElementById(id);
 
+/** The chart series, empty. One definition because five places reset them, and a sixth that
+ *  forgot a key would draw a chart of `undefined` rather than fail. */
+function emptyHistory() {
+  return { helix: [], sheet: [], coil: [], rg: [], compact: [], contacts: [], formed: 0 };
+}
+
 /* Where this build's assets live, from the tag that loaded this module. Everything fetched
  * at runtime goes through it, so a worker and a style file carry the same version as the
  * module graph and are cached on the same terms. */
@@ -83,7 +89,7 @@ class Player {
     // frame is set from outside - a seek, a restart, a new fold - or it would resume from
     // where the last silent run stopped.
     this.silentPosition = 0;
-    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.history = emptyHistory();
     this.audio = new FoldAudio();
     this.styleId = 'fantasy';
     this.styles = {};
@@ -218,7 +224,7 @@ class Player {
     this.silentPosition = 0;
     this._readoutsDrawn = false;
     this.contactsSoFar = 0;
-    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.history = emptyHistory();
     this.stage.setResidueCount(fold.residueCount, fold.angstromsPerUnit);
     // A finished artefact is scaled so its widest frame touches the edge of the box, so the
     // box IS the extent. Set explicitly because the fold before this one may have been a
@@ -436,7 +442,7 @@ class Player {
     this.residueCount = n;
     this.frames = [];
     this.streamedFrames = [];
-    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.history = emptyHistory();
     this.contactsSoFar = 0;
     this._readoutsDrawn = false;
   }
@@ -508,7 +514,7 @@ class Player {
     this.worker = new Worker(`${STATIC_BASE}/js/fold_worker.js`, { type: 'module' });
     this.streamedFrames = [];
     this.frames = [];
-    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.history = emptyHistory();
     this.contactsSoFar = 0;
     // The first streamed frame is index 0, which is where the previous fold left `index`,
     // so without this the readouts would sit on the old fold's numbers until frame 2.
@@ -621,7 +627,7 @@ class Player {
     // The live fold becomes an ordinary fold: same frame objects, same player, same
     // sonifier. Nothing downstream knows where the frames came from.
     this.fold = { ...this.fold, frames: this.streamedFrames };
-    this.history = { helix: [], sheet: [], coil: [], rg: [] };
+    this.history = emptyHistory();
     this._rescore();
     this._show(0);
     this.contactsSoFar = 0;
@@ -740,9 +746,11 @@ class Player {
     const generative = this.engine === 'generative';
     $('k-compact').textContent = generative ? 'Size' : 'Compact';
     $('k-q').textContent = generative ? 'Emerged' : 'Native';
-    $('rg-legend').textContent = generative
-      ? 'the expansion, in Ångströms · 9-frame mean'
-      : 'the collapse, in Ångströms · 9-frame mean';
+    // The legend is the colour key now, so the engine-specific word lives in the title:
+    // "compaction" is the wrong noun for a trajectory that opens out.
+    $('rg-title').textContent = generative
+      ? 'Radius, size and contacts over time'
+      : 'Radius, compaction and contacts over time';
 
     $('r-rg').textContent = frame.rg.toFixed(1);
     // The other standard measure of a chain's size, and the one that says something the
@@ -778,7 +786,7 @@ class Player {
     // beside them.
     if (!this.history.rg.length) this._buildHistory();
     drawSSChart($('chart-ss'), this.history, this.index);
-    drawRgChart($('chart-rg'), this.history.rg, this.index);
+    drawRgChart($('chart-rg'), this.history, this.index);
   }
 
   _buildHistory() {
@@ -794,6 +802,16 @@ class Player {
     this.history.sheet.push(sheet / n);
     this.history.coil.push((n - helix - sheet) / n);
     this.history.rg.push(frame.rg);
+    // Compaction on the 0..1 axis the fractions already use. For a generative fold that
+    // measure is pinned at 1 for the whole trajectory, so it plots the same thing the
+    // readout does there: how near the size of a folded protein of this length it has got.
+    this.history.compact.push(this.engine === 'generative'
+      ? Math.min(frame.rg / (2.2 * Math.pow(this.residueCount || 1, 0.38)), 1)
+      : compaction(frame.rg, this.residueCount));
+    // A running total, which is what the readout beside it counts. Normalised at draw time
+    // rather than here, because a streamed fold does not know its final total yet.
+    this.history.formed += frame.newContacts.length;
+    this.history.contacts.push(this.history.formed);
   }
 
   _loop(now) {
@@ -1088,15 +1106,33 @@ export function drawSSChart(canvas, history, index) {
   playhead(ctx, index, history.helix.length, w, h);
 }
 
-export function drawRgChart(canvas, rg, index) {
+/* Three traces that measure three different things, on one panel.
+ *
+ * The radius is a length in Angstroms with no natural zero, so it is scaled to its own
+ * SMOOTHED range - scaling to the raw range leaves the smoothed trace in a thin band up the
+ * middle with nothing above and below it but the noise that was just removed. Compaction is
+ * already a 0 to 1 fraction. Contacts is a running total, normalised to however many have
+ * formed by the last frame drawn.
+ *
+ * So the axis means "each trace across its own range", which the legend says on hover
+ * rather than in a line of type: this is a sparkline panel, and what it is for is the SHAPE
+ * of the three curves against each other and against the playhead. The numbers themselves
+ * are in the readouts under the stage, to the pixel.
+ */
+export const RG_COLOURS = { radius: '#8FB4FF', compact: '#FCB900', contacts: '#3DDC97' };
+
+export function drawRgChart(canvas, history, index) {
   const { ctx, w, h } = prepare(canvas);
+  const rg = history.rg ?? [];
   if (!rg.length) return;
-  // Scaled to the SMOOTHED range, so the curve fills the panel. Scaling to the raw range
-  // leaves the smoothed trace sitting in a thin band up the middle, with the space above and
-  // below it holding nothing but the noise that was just removed.
   const series = smoothed(rg, RG_SMOOTHING);
   const low = Math.min(...series), high = Math.max(...series);
-  polyline(ctx, rg, w, h, low, high, '#8FB4FF', RG_SMOOTHING);
+  const total = history.contacts[history.contacts.length - 1] || 1;
+  // Radius last, so the trace the panel is named for is the one on top where they cross.
+  polyline(ctx, history.contacts.map(v => v / total), w, h, 0, 1,
+           RG_COLOURS.contacts, RG_SMOOTHING);
+  polyline(ctx, history.compact, w, h, 0, 1, RG_COLOURS.compact, RG_SMOOTHING);
+  polyline(ctx, rg, w, h, low, high, RG_COLOURS.radius, RG_SMOOTHING);
   playhead(ctx, index, rg.length, w, h);
 }
 

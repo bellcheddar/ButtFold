@@ -16,6 +16,7 @@
   --bf-cyan:          #22E5FF;   /* accent; sheet on the ribbon */
   --bf-magenta:       #FF3D9A;   /* accent + error text; helix on the ribbon */
   --bf-amber:         #FCB900;   /* disclosure line, logo dot */
+  --bf-green:         #3DDC97;   /* contacts trace; the one accent not already spoken for */
   --bf-pale-blue:     #8FB4FF;
 
   /* Ribbon colouring, the thing a viewer actually sees. Helix magenta, sheet cyan, coil
@@ -353,6 +354,13 @@ body.picking-uniprot { --bf-page-chrome: 302px; }
 .chart .legend .h { color: var(--bf-helix); }
 .chart .legend .e { color: var(--bf-sheet); }
 .chart .legend .c { color: var(--bf-coil); }
+.chart .legend .rg { color: #8FB4FF; }
+.chart .legend .cp { color: var(--bf-amber); }
+.chart .legend .ct { color: var(--bf-green); }
+/* The legend now carries what the axis means, on hover. The smoothing window and the units
+   used to be printed here; on Marc's instruction they came out to save the space, and a
+   tooltip keeps the disclosure without spending a line on it. */
+.chart .legend[title] { cursor: help; }
 
 /* ---------------------------------------------------------------- transport -----------
    Inside the viewer, over the structure. Both of these used to sit in the page's flow

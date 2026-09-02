@@ -7,3 +7,9 @@ node_modules/
 .DS_Store
 *.frames.bin
 .fold_cache/
+
+# Exported session transcripts. `/export` writes them into whatever directory the session
+# is in, which is the repo, and they are a verbatim record of the conversation rather than
+# anything the project needs. Dated prefix so this cannot swallow a real data file: the
+# requirements*.txt in this repo are tracked and stay tracked.
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt

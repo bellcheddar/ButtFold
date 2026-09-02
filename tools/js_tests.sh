@@ -38,6 +38,25 @@ echo "browser gates ${GATE_NODE:-none found}" \
      "${GATE_NODE:+($("${GATE_NODE:-echo}" --version))}"
 echo
 
+# Has macOS evicted the fixtures to iCloud?
+#
+# This repo lives under ~/Documents, which "Optimize Mac Storage" treats as fair game: a
+# fixture that has not been read for a while becomes a dataless placeholder, and reading it
+# blocks on a download that can time out. What that looks like from inside a test is
+# `SyntaxError: Unexpected end of JSON input` on a file that is plainly there and plainly
+# the right size, which reads exactly like a corrupt fixture or a bug in the baker. It cost
+# most of an hour once. `brctl download` pulls them back; this only has to name the cause.
+dataless=$(ls -lO tests/fixtures/*/* 2>/dev/null | grep -c dataless || true)
+if [ "${dataless:-0}" -gt 0 ]; then
+  echo "WARNING  $dataless test fixture(s) have been evicted to iCloud and are dataless."
+  echo "         Reading one can time out and surface as 'Unexpected end of JSON input'."
+  echo "         Pulling them back before running: brctl download tests/fixtures"
+  brctl download tests/fixtures 2>/dev/null || true
+  for f in tests/fixtures/*/*; do [ -f "$f" ] && cat "$f" > /dev/null 2>&1; done
+  echo "         now $(ls -lO tests/fixtures/*/* 2>/dev/null | grep -c dataless || echo 0) dataless"
+  echo
+fi
+
 failed=0
 for suite in tests/*.test.mjs; do
   if "$UNIT_NODE" --test "$suite" >/tmp/buttfold-js-$$.log 2>&1; then

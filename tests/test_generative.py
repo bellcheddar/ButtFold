@@ -172,8 +172,11 @@ def test_the_readouts_do_not_report_a_native_fraction_for_something_with_no_nati
     player = (REPO / "static" / "js" / "player.js").read_text()
     assert "'Emerged'" in player and "'Size'" in player, (
         "the readouts are not relabelled for the generative engine")
-    assert "the expansion, in" in player, (
-        "the radius-of-gyration chart still calls a diffusion trajectory a collapse")
+    # The word moved from the legend to the chart's title when the legend became a colour
+    # key for three traces. What must stay true is that no generative fold is described with
+    # a noun that means the opposite of what it does.
+    assert "'Radius, size and contacts over time'" in player, (
+        "the radius chart still calls a diffusion trajectory a compaction")
 
 
 def test_the_generative_engine_does_not_take_its_tempo_from_compaction():

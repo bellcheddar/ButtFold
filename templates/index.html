@@ -176,12 +176,15 @@
     <div class="chart">
       <h3>Secondary structure over time</h3>
       <canvas id="chart-ss"></canvas>
-      <div class="legend"><span class="h">helix</span> &middot; <span class="e">sheet</span> &middot; <span class="c">coil</span> &middot; 5-frame mean</div>
+      <!-- The smoothing window moved into the title. It is still disclosed - these are means
+           and not raw frames - but it was costing a line of a small panel. -->
+      <div class="legend" title="Fraction of residues, as a 5-frame mean"><span class="h">helix</span> &middot; <span class="e">sheet</span> &middot; <span class="c">coil</span></div>
     </div>
     <div class="chart">
-      <h3>Radius of gyration over time</h3>
+      <h3 id="rg-title">Radius, compaction and contacts over time</h3>
       <canvas id="chart-rg"></canvas>
-      <div class="legend" id="rg-legend">the collapse, in &#197;ngstr&ouml;ms &middot; 9-frame mean</div>
+      <div class="legend" id="rg-legend"
+           title="Each trace spans the panel over its own range, as a 9-frame mean: the radius between its smallest and largest, compaction and contacts between none and all"><span class="rg">radius</span> &middot; <span class="cp">compaction</span> &middot; <span class="ct">contacts</span></div>
     </div>
   </div>
 
