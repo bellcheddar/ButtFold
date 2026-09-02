@@ -884,6 +884,14 @@ class Player {
         $('play').textContent = 'Play';
       }
     } else if (this.playing && this.frames.length) {
+      // Report here too. This is the branch a browser that refused the audio ends up in,
+      // and it was the one branch that never asked what went wrong - which is why a Safari
+      // that would not play showed no message at all.
+      const trouble = this.audio.diagnose();
+      if (trouble !== this._audioTrouble) {
+        this._audioTrouble = trouble;
+        $('audio-note').textContent = trouble ?? '';
+      }
       // Silent playback, for a browser with no Web Audio or before the first gesture. A
       // float rather than a whole-frame step, for the same reason as above: there is no
       // audio clock to follow here, so this one advances itself and is still drawn in

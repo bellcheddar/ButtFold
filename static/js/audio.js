@@ -301,6 +301,8 @@ export class FoldAudio {
     this.startedAt = this.context.currentTime;
     this.playing = true;
     this._clockSeenAt = null;      // the watchdog measures from here, not from load
+    this.schedulingError = null;
+    this.schedulingFailures = 0;
     // Resume scheduling from the first moment at or after the resume point, so seeking does
     // not replay everything before it in a burst.
     this.nextIndex = this.timeline.findIndex(t => t.startSeconds >= this.offsetSeconds);
@@ -343,6 +345,13 @@ export class FoldAudio {
    */
   diagnose() {
     if (!this.context) return null;
+    // The most useful thing this can say, when it has it: the actual exception, from the
+    // actual browser. Everything below is inference; this is the message itself.
+    if (this.schedulingError) {
+      return `The browser refused a note: ${this.schedulingError}. `
+           + `${this.schedulingFailures} moment(s) could not be scheduled, which is why `
+           + 'this is silent.';
+    }
     if (this.context.state === 'interrupted') {
       return 'Safari has interrupted the audio. Playing anything else and coming back, or '
            + 'reloading the tab, usually restores it.';
@@ -364,6 +373,12 @@ export class FoldAudio {
       return 'The browser started the audio but is not running its clock, so the notes are '
            + 'being scheduled into silence. Reloading the tab usually clears it.';
     }
+    // A clock that runs while nothing is queued: the piece has notes, playback has been
+    // going for a while, and the scheduler has not got past the first moment.
+    if (this.timeline.length > 1 && this.positionSeconds > 1.5 && this.nextIndex <= 1) {
+      return 'The audio is running but no notes are reaching it. Please open the browser '
+           + 'console and send me what is there.';
+    }
     return null;
   }
 
@@ -373,7 +388,24 @@ export class FoldAudio {
     while (this.nextIndex < this.timeline.length
            && this.timeline[this.nextIndex].startSeconds <= horizon) {
       const entry = this.timeline[this.nextIndex++];
-      this._scheduleMoment(entry);
+      // **One bad note must not silence the piece.** This ran unguarded, inside a
+      // setInterval callback: anything the Web Audio implementation refused threw out of
+      // the tick, the interval carried on calling it, nothing was ever scheduled - and from
+      // outside it looked perfectly healthy. The context reports "running", its clock keeps
+      // advancing, the animation follows that clock and so stays in time, and there is
+      // silence. There is no state to inspect that says otherwise, which is why the failure
+      // has to be caught where it happens and carried out to the page.
+      //
+      // Browsers disagree here, and Safari is the strict one: it rejects parameter values
+      // and node arguments that Chrome coerces, so a piece that plays in one can be silent
+      // in the other with nothing logged that the page can reach.
+      try {
+        this._scheduleMoment(entry);
+      } catch (err) {
+        this.schedulingFailures = (this.schedulingFailures ?? 0) + 1;
+        this.schedulingError ??= `${err.name}: ${err.message}`;
+        console.error('scheduling a moment failed', err);
+      }
     }
     if (this.nextIndex >= this.timeline.length
         && this.positionSeconds >= (this.durationSeconds ?? 0)) {

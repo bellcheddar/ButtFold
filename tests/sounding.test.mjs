@@ -185,3 +185,35 @@ test('a running context whose clock advances is left alone', () => {
 test('nothing is diagnosed before there is a context at all', () => {
   assert.equal(new FoldAudio().diagnose(), null);
 });
+
+test('a note the browser refuses is reported rather than silencing the piece', () => {
+  const audio = withContext('running', () => 1);
+  audio.loadScore(score(), {}, () => null);
+  audio.playing = true;
+  audio.offsetSeconds = 0;
+  audio.startedAt = 0;
+  audio.nextIndex = 0;
+  // What a stricter implementation does: refuse one node and throw out of the tick.
+  audio._scheduleMoment = () => { throw new TypeError('Not enough arguments'); };
+  audio._tick();
+
+  assert.ok(audio.schedulingFailures > 0, 'the failure was swallowed');
+  assert.match(audio.diagnose(), /refused a note/);
+  assert.match(audio.diagnose(), /Not enough arguments/,
+               'the browser\'s own message is the useful part and must survive');
+  // And the scheduler kept going rather than dying on the first one, which is what left
+  // the page looking healthy and sounding like nothing.
+  assert.ok(audio.nextIndex > 0, 'the scheduler stopped at the first bad moment');
+});
+
+test('a clock that runs while nothing is queued says so', () => {
+  const audio = withContext('running', () => 9);
+  audio.loadScore(score(), {}, () => null);
+  audio.playing = true;
+  audio.startedAt = 0;
+  audio.offsetSeconds = 0;
+  audio.nextIndex = 0;
+  audio._clockSeenWall = Date.now() - 900;
+  audio._clockSeenAt = 0;
+  assert.match(audio.diagnose(), /no notes are reaching it/);
+});
