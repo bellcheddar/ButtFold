@@ -84,13 +84,25 @@ if [[ "${1:-}" == "--provision" ]]; then
   echo "==> installing units and the nginx site"
   scp -q deploy/buttfold-web.service deploy/buttfold-worker.service "$DROPLET:/etc/systemd/system/"
   scp -q deploy/nginx.conf "$DROPLET:/etc/nginx/sites-available/buttfold"
-  ssh "$DROPLET" bash -s <<'INSTALL'
+  # The scp above just overwrote the live config with deploy/nginx.conf, which is a
+  # plain-HTTP template with no TLS block -- certbot added the live one in place, and it
+  # is gone now. Re-running certbot's installer restores it. This runs on EVERY provision,
+  # not just the first: it is idempotent (a valid cert is reused, not re-issued), and
+  # skipping it "because a cert already exists" is precisely what silently strips HTTPS.
+  # Every other app on this droplet already does this; ButtFold was the one that did not.
+  ssh "$DROPLET" bash -s -- "$HOSTNAME_" <<'INSTALL'
 set -euo pipefail
+host="$1"
 ln -sfn /etc/nginx/sites-available/buttfold /etc/nginx/sites-enabled/buttfold
 nginx -t
 systemctl daemon-reload
 systemctl enable buttfold-web buttfold-worker
 systemctl reload nginx
+
+echo "==> ensuring TLS (certbot)"
+certbot --nginx -d "$host" --non-interactive --agree-tos \
+  -m marc@marcdeller.com --redirect || \
+  echo "    certbot failed (DNS not pointed yet?). Re-run: certbot --nginx -d $host"
 INSTALL
 fi
 
